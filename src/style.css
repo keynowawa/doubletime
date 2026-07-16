@@ -413,7 +413,7 @@ body {
   background: transparent;
   width: 90%;
   max-width: 600px;
-  padding: 3rem;
+  padding: 2rem 2rem 3rem;
   position: relative;
   text-align: center;
   transform: scale(0.95);
@@ -427,17 +427,22 @@ body {
 
 .modal-close {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 0.5rem;
+  right: 0.5rem;
   background: none;
   border: none;
   color: white;
-  font-size: 3rem;
+  font-size: 2.4rem;
   cursor: pointer;
   z-index: 10;
   transition: transform 0.2s;
   font-family: var(--ui-font);
   font-weight: 300;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-close:hover {
@@ -459,7 +464,7 @@ body {
 }
 
 .modal-title {
-  font-size: 3.5rem;
+  font-size: 2.5rem;
   margin-bottom: 0.5rem;
 }
 
@@ -516,9 +521,9 @@ body {
 }
 
 .modal-desc {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   max-width: 400px;
-  opacity: 0.9;
+  opacity: 0.85;
   line-height: 1.6;
   text-align: center;
   margin: 0 auto;
@@ -1392,9 +1397,9 @@ body {
   50%       { transform: translateY(-10px); }
 }
 
-/* Smooth zoom-into-glass animation */
+/* Smooth zoom-into-glass animation — no blur, just pure scale + fade */
 .glass-scene-zoom {
-  animation: zoomIntoGlass 0.7s cubic-bezier(0.4, 0, 0, 1) forwards !important;
+  animation: zoomIntoGlass 0.8s cubic-bezier(0.4, 0, 0, 1) forwards !important;
   pointer-events: none;
 }
 
@@ -1402,17 +1407,18 @@ body {
   0% {
     transform: scale(1);
     opacity: 1;
-    filter: blur(0);
   }
-  60% {
-    transform: scale(4);
-    opacity: 0.6;
-    filter: blur(2px);
+  40% {
+    transform: scale(5);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(15);
+    opacity: 0.8;
   }
   100% {
-    transform: scale(8);
+    transform: scale(30);
     opacity: 0;
-    filter: blur(12px);
   }
 }
 

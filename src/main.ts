@@ -276,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
       targetModal.classList.add('active');
       targetModal.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
-    }, 700); // Match the zoomIntoGlass keyframe duration
+    }, 800); // Match the zoomIntoGlass keyframe duration
   };
 
   matchaLayer?.addEventListener('click', () => openGlassModal(matchaModal));
