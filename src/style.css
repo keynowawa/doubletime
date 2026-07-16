@@ -648,9 +648,9 @@ body {
     display: none; 
   }
 
-  /* Adjust Hero to let bowl peek in but leave whitespace */
+  /* Adjust Hero to be full screen on mobile so the bowl is hidden on load */
   .hero {
-    min-height: 70vh;
+    min-height: 100vh;
   }
 
   /* Story section mobile layout: centered stack */
@@ -659,7 +659,7 @@ body {
     gap: 1rem;
     text-align: center;
     padding: 0;
-    margin-top: 10rem; /* Increase white space between hero and bowl */
+    margin-top: 4rem; /* Spacing between hero bottom and the bowl */
   }
   
   .story-left {
@@ -671,7 +671,7 @@ body {
     height: auto;
     width: 100%;
     max-width: 500px; /* Make bowl bigger */
-    margin: 0 auto 2rem auto; /* Add space below the bowl */
+    margin: 0 auto 0.5rem auto; /* Tighter space below the bowl before text */
   }
   
   .story-img {
@@ -713,7 +713,8 @@ body {
   .flavor-item p { font-size: 0.95rem; }
   
   .section-title { margin-bottom: 2rem; } /* Tighter headers on mobile */
-  .flavors-section, .news-section { padding: 3rem 5vw; }
+  .flavors-section { padding: 3rem 5vw 1rem 5vw; }
+  .news-section { padding: 1rem 5vw 3rem 5vw; }
   .contact-section { padding: 3rem 5vw; }
   .contact-layout { flex-direction: column; gap: 2rem; text-align: center; }
   .contact-content { display: flex; flex-direction: column; align-items: center; }
