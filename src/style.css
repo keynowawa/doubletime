@@ -463,33 +463,54 @@ body {
 
 .modal-meta {
   display: flex;
-  gap: 1rem;
-  margin-bottom: 2rem;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
   justify-content: center;
   align-items: center;
 }
 
-.badge {
-  font-size: 0.85rem;
-  padding: 0.3rem 0.8rem;
-  border-radius: 4px;
-  background: rgba(255,255,255,0.1);
-  letter-spacing: 0.05em;
-  opacity: 0.9;
-}
-
 .cal-badge {
-  background: rgba(144, 238, 144, 0.15);
+  font-size: 0.9rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  background: rgba(144, 238, 144, 0.05);
+  border: 1px solid rgba(144, 238, 144, 0.2);
   color: #a8d5a2;
+  letter-spacing: 0.03em;
 }
 
 .price-tag {
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   font-weight: 600;
   color: white;
   margin-left: 0.5rem;
   font-family: var(--display-font);
   letter-spacing: 0.02em;
+}
+
+.modal-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.rich-badge {
+  font-size: 0.8rem;
+  padding: 0.4rem 1rem;
+  border-radius: 30px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.15);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  color: rgba(255,255,255,0.9);
+  letter-spacing: 0.02em;
+  transition: background 0.3s ease;
+}
+
+.rich-badge:hover {
+  background: rgba(255,255,255,0.1);
 }
 
 .modal-desc {
@@ -718,19 +739,20 @@ body {
   justify-content: center;
 }
 
-.flavor-sku, .flavor-cal {
+.flavor-tag, .flavor-cal {
   font-size: 0.75rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  background: rgba(255,255,255,0.08);
-  letter-spacing: 0.05em;
-  opacity: 0.7;
+  padding: 0.3rem 0.6rem;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  letter-spacing: 0.03em;
+  color: rgba(255,255,255,0.85);
 }
 
 .flavor-cal {
-  background: rgba(144, 238, 144, 0.1);
+  background: rgba(144, 238, 144, 0.05);
+  border: 1px solid rgba(144, 238, 144, 0.2);
   color: #a8d5a2;
-  opacity: 0.9;
 }
 
 .flavor-name {
