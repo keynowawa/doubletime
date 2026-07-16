@@ -400,14 +400,25 @@ body {
   overflow-y: auto; /* Enable scrolling if content overflows */
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
-  will-change: opacity, visibility;
+  
+  /* Circle expansion from click point */
+  --wash-x: 50%;
+  --wash-y: 50%;
+  clip-path: circle(0% at var(--wash-x) var(--wash-y));
+  
+  transition: opacity 0.4s ease, 
+              visibility 0.4s ease,
+              clip-path 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, visibility, clip-path;
 }
 
 .modal-overlay.active {
   opacity: 1;
   visibility: visible;
+  clip-path: circle(150% at var(--wash-x) var(--wash-y));
 }
+
+
 
 .modal-content {
   background: transparent;
@@ -1397,34 +1408,15 @@ body {
   50%       { transform: translateY(-10px); }
 }
 
-/* When zooming, just fade the glass out — the color wash overlay does the heavy lifting */
+/* Fade the glass out gently while the modal expands */
 .glass-scene-zoom {
   animation: none !important;
   opacity: 0 !important;
-  transition: opacity 0.5s ease !important;
+  transition: opacity 0.4s ease !important;
   pointer-events: none;
 }
 
-/* Full-screen color wash overlay — expands from clicked layer */
-.zoom-wash {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1999; /* just below modals */
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.6s ease;
-}
 
-.zoom-wash.active {
-  opacity: 1;
-}
-
-.zoom-wash-matcha {
-  background: radial-gradient(circle at var(--wash-x, 50%) var(--wash-y, 40%), rgba(72, 148, 70, 1) 0%, rgba(30, 65, 28, 0.95) 100%);
-}
 
 .zoom-wash-milk {
   background: radial-gradient(circle at var(--wash-x, 50%) var(--wash-y, 70%), rgba(245, 235, 215, 1) 0%, rgba(210, 195, 170, 0.95) 100%);
