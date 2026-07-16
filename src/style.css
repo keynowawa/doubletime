@@ -587,6 +587,9 @@ body {
 }
 
 .flavors-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
   background: white;
   color: var(--bg-color);
   padding: 1rem 3rem;
