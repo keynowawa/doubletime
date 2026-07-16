@@ -239,6 +239,83 @@ document.addEventListener('DOMContentLoaded', () => {
   );
   infoItems.forEach(item => fadeObserver.observe(item));
 
+  // 6. Glass Layer Hover Reveals (JS fallback for non-:has() browsers)
+  const matchaLayer = document.querySelector('.glass-layer-hoverable[data-layer="matcha"]');
+  const milkLayer   = document.querySelector('.glass-layer-hoverable[data-layer="milk"]');
+  const revealMatcha = document.querySelector('.layer-reveal-matcha') as HTMLElement | null;
+  const revealMilk   = document.querySelector('.layer-reveal-milk') as HTMLElement | null;
+
+  const toggleReveal = (reveal: HTMLElement | null, show: boolean) => {
+    if (!reveal) return;
+    if (show) reveal.classList.add('active');
+    else reveal.classList.remove('active');
+  };
+
+  matchaLayer?.addEventListener('mouseenter', () => toggleReveal(revealMatcha, true));
+  matchaLayer?.addEventListener('mouseleave', () => toggleReveal(revealMatcha, false));
+  milkLayer?.addEventListener('mouseenter',   () => toggleReveal(revealMilk, true));
+  milkLayer?.addEventListener('mouseleave',   () => toggleReveal(revealMilk, false));
+
+  // 7. Caffeine Spectrum — animate fill + dot tooltips
+  const spectrumFill = document.querySelector('.caf-spectrum-fill') as HTMLElement | null;
+  const cafTooltip   = document.getElementById('caf-tooltip');
+  const cafDots      = document.querySelectorAll('.caf-dot');
+
+  // Animate the fill bar in when the section is scrolled to
+  if (spectrumFill) {
+    const specObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            spectrumFill.classList.add('animated');
+            specObserver.disconnect();
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+    specObserver.observe(spectrumFill);
+  }
+
+  cafDots.forEach(dot => {
+    dot.addEventListener('mouseenter', () => {
+      if (!cafTooltip) return;
+      const name = dot.getAttribute('data-name') || '';
+      const mg   = dot.getAttribute('data-mg') || '';
+      const desc = dot.getAttribute('data-desc') || '';
+      cafTooltip.innerHTML = `<strong>${name} — ${mg}</strong><span>${desc}</span>`;
+    });
+    dot.addEventListener('mouseleave', () => {
+      if (!cafTooltip) return;
+      cafTooltip.innerHTML = `<span style="opacity:0.4">Hover a dot to explore caffeine levels</span>`;
+    });
+  });
+
+  // Set default tooltip text
+  if (cafTooltip) {
+    cafTooltip.innerHTML = `<span style="opacity:0.4">Hover a dot to explore caffeine levels</span>`;
+  }
+
+  // 8. Tasting Accordion
+  const tastingItems = document.querySelectorAll('.tasting-item');
+  tastingItems.forEach(item => {
+    const trigger = item.querySelector('.tasting-trigger');
+    trigger?.addEventListener('click', () => {
+      const isOpen = item.classList.contains('open');
+      // Close all
+      tastingItems.forEach(i => {
+        i.classList.remove('open');
+        (i as HTMLElement).style.setProperty('--item-color', '');
+      });
+      // Open this one if it was closed
+      if (!isOpen) {
+        item.classList.add('open');
+        const color = item.getAttribute('data-color') || '';
+        (item as HTMLElement).style.setProperty('--item-color', color);
+      }
+    });
+  });
+
 });
 
 // Scroll to top on reload (before DOM fully loaded paints)
