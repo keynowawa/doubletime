@@ -709,7 +709,7 @@ body {
   .hero-title { margin-bottom: 0.2rem; }
   
   .scroll-indicator {
-    bottom: 5rem; /* Raise it so it doesn't hide behind mobile address bars */
+    bottom: 12vh; /* Raise it significantly higher so it clears all mobile UI components */
   }
 
   /* Story section mobile layout: centered stack */
