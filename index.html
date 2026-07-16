@@ -165,7 +165,6 @@
           <p class="craft-subhead ui-text">Every cup is built on two foundational ingredients.</p>
         </div>
 
-        <!-- What's Inside: CSS Glass Infographic -->
         <div class="craft-infographic">
 
           <!-- Left: Matcha Info -->
@@ -194,45 +193,9 @@
             </div>
           </div>
 
-          <!-- Center: CSS Glass with layer hover reveals -->
+          <!-- Center: CSS Glass -->
           <div class="craft-glass-wrapper">
-            <!-- Matcha hover reveal (left) -->
-            <div class="layer-reveal layer-reveal-matcha">
-              <img src="/assets/matchapowder.png" alt="Ceremonial Grade Matcha" class="layer-reveal-img" />
-              <p class="layer-reveal-label ui-text">Ceremonial Grade Matcha</p>
-            </div>
-
-            <div class="craft-glass-scene">
-              <!-- Straw -->
-              <div class="glass-straw"></div>
-              <!-- The Glass Container -->
-              <div class="css-glass">
-                <div class="glass-highlight-left"></div>
-                <div class="glass-highlight-right"></div>
-                <div class="glass-ice ice-1"></div>
-                <div class="glass-ice ice-2"></div>
-                <div class="glass-ice ice-3"></div>
-                <!-- Milk layer (bottom) — hoverable -->
-                <div class="glass-layer-milk glass-layer-hoverable" data-layer="milk">
-                  <div class="milk-shimmer"></div>
-                </div>
-                <!-- Matcha layer (top) — hoverable -->
-                <div class="glass-layer-matcha glass-layer-hoverable" data-layer="matcha">
-                  <div class="matcha-shimmer"></div>
-                  <div class="matcha-froth"></div>
-                </div>
-              </div>
-              <div class="glass-base"></div>
-            </div>
-
-            <div class="glass-glow"></div>
-
-            <!-- Matcha label (left) -->
-            <div class="glass-label glass-label-matcha ui-text">matcha</div>
-            <!-- Oat milk label (RIGHT side) -->
-            <div class="glass-label glass-label-milk glass-label-right ui-text">oat milk</div>
-
-            <!-- Milk hover reveal (right) -->
+            <!-- Milk reveal: LEFT of glass (hovering milk hides matcha info on left) -->
             <div class="layer-reveal layer-reveal-milk">
               <div class="milk-reveal-pair">
                 <div class="milk-reveal-card">
@@ -244,6 +207,33 @@
                   <p class="layer-reveal-label ui-text">So Good</p>
                 </div>
               </div>
+            </div>
+
+            <div class="craft-glass-scene" id="craft-glass-scene">
+              <div class="glass-straw"></div>
+              <div class="css-glass">
+                <div class="glass-highlight-left"></div>
+                <div class="glass-highlight-right"></div>
+                <div class="glass-ice ice-1"></div>
+                <div class="glass-ice ice-2"></div>
+                <div class="glass-ice ice-3"></div>
+                <div class="glass-layer-milk glass-layer-hoverable" data-layer="milk">
+                  <div class="milk-shimmer"></div>
+                </div>
+                <div class="glass-layer-matcha glass-layer-hoverable" data-layer="matcha">
+                  <div class="matcha-shimmer"></div>
+                  <div class="matcha-froth"></div>
+                </div>
+              </div>
+              <div class="glass-base"></div>
+            </div>
+
+            <div class="glass-glow"></div>
+
+            <!-- Matcha reveal: RIGHT of glass (hovering matcha hides milk info on right) -->
+            <div class="layer-reveal layer-reveal-matcha">
+              <img src="/assets/matchapowder.png" alt="Ceremonial Grade Matcha" class="layer-reveal-img" />
+              <p class="layer-reveal-label ui-text">Ceremonial Grade Matcha</p>
             </div>
           </div>
 
@@ -273,113 +263,7 @@
             </div>
           </div>
         </div>
-
-        <!-- Caffeine & Tasting interactive panels -->
-        <div class="craft-tabs-section">
-          <div class="guide-tabs ui-text">
-            <button class="guide-tab active" data-target="caffeine-content">Caffeine Science</button>
-            <button class="guide-tab" data-target="tasting-content">Tasting Profiles</button>
-          </div>
-
-          <div class="craft-tab-panels">
-
-            <!-- CAFFEINE: Animated Spectrum -->
-            <div class="craft-panel active" id="caffeine-content">
-              <div class="caf-intro ui-text">
-                <p>Matcha delivers caffeine differently. L-Theanine binds to it, smoothing the absorption curve. No spike. No crash. Just <em>clean focus</em>.</p>
-              </div>
-              <div class="caf-spectrum">
-                <div class="caf-spectrum-track">
-                  <div class="caf-spectrum-fill"></div>
-                  <div class="caf-label-zero ui-text">0mg</div>
-                  <div class="caf-label-max ui-text">40mg</div>
-                  <!-- Flavor dots on spectrum -->
-                  <div class="caf-dot" style="left:0%" data-name="Golden Hour" data-mg="0mg" data-desc="Caffeine-free. Turmeric-based."></div>
-                  <div class="caf-dot" style="left:55%" data-name="Coco Loco / Stay Salty / Berry Cute" data-mg="20–30mg" data-desc="Smooth, sustained midday energy."></div>
-                  <div class="caf-dot caf-dot-high" style="left:87%" data-name="Main Character" data-mg="30–40mg" data-desc="Peak ceremonial focus. Pure and clean."></div>
-                </div>
-                <div class="caf-tooltip ui-text" id="caf-tooltip"></div>
-              </div>
-              <div class="caf-compare ui-text">
-                <span class="caf-compare-item">
-                  <span class="caf-compare-dot" style="background:#5eaf46;"></span>Matcha — calm, extended
-                </span>
-                <span class="caf-compare-item">
-                  <span class="caf-compare-dot" style="background:rgba(255,255,255,0.3);"></span>Coffee — fast spike, crash
-                </span>
-              </div>
-            </div>
-
-            <!-- TASTING: Interactive Accordion -->
-            <div class="craft-panel" id="tasting-content">
-              <div class="tasting-accordion">
-                <div class="tasting-item" data-color="rgba(72,148,70,0.15)">
-                  <button class="tasting-trigger">
-                    <span class="tasting-dot" style="background: #5eaf46;"></span>
-                    <span class="tasting-name display-font">Umami Rich</span>
-                    <span class="tasting-chevron">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                    </span>
-                  </button>
-                  <div class="tasting-body ui-text">
-                    <p>The hallmark of high-grade Uji matcha. A deeply savory, vegetal sweetness that coats the palate — with absolutely zero bitterness. Found in <em>Main Character</em>.</p>
-                  </div>
-                </div>
-                <div class="tasting-item" data-color="rgba(255,200,100,0.1)">
-                  <button class="tasting-trigger">
-                    <span class="tasting-dot" style="background: #f0c060;"></span>
-                    <span class="tasting-name display-font">Savory Sweet</span>
-                    <span class="tasting-chevron">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                    </span>
-                  </button>
-                  <div class="tasting-body ui-text">
-                    <p>Natural matcha sweetness elevated by premium sea salt. The contrast triggers both sweet and savory receptors simultaneously. Found in <em>Stay Salty</em>.</p>
-                  </div>
-                </div>
-                <div class="tasting-item" data-color="rgba(200,100,200,0.1)">
-                  <button class="tasting-trigger">
-                    <span class="tasting-dot" style="background: #c86eb4;"></span>
-                    <span class="tasting-name display-font">Fruity &amp; Creamy</span>
-                    <span class="tasting-chevron">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                    </span>
-                  </button>
-                  <div class="tasting-body ui-text">
-                    <p>Fresh berry brightness layered over a silky oat milk base, grounded by the earthy depth of ceremonial matcha. Found in <em>Berry Cute</em>.</p>
-                  </div>
-                </div>
-                <div class="tasting-item" data-color="rgba(240,160,60,0.1)">
-                  <button class="tasting-trigger">
-                    <span class="tasting-dot" style="background: #e8a030;"></span>
-                    <span class="tasting-name display-font">Earthy &amp; Spiced</span>
-                    <span class="tasting-chevron">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                    </span>
-                  </button>
-                  <div class="tasting-body ui-text">
-                    <p>Golden turmeric warmth meets matcha's deep earthiness. A grounding, warming finish without any harsh spice. Found in <em>Golden Hour</em>.</p>
-                  </div>
-                </div>
-                <div class="tasting-item" data-color="rgba(100,180,255,0.08)">
-                  <button class="tasting-trigger">
-                    <span class="tasting-dot" style="background: #7ec8f0;"></span>
-                    <span class="tasting-name display-font">Nutty &amp; Tropical</span>
-                    <span class="tasting-chevron">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-                    </span>
-                  </button>
-                  <div class="tasting-body ui-text">
-                    <p>Toasted coconut and a subtle tropical sweetness that softens the matcha's bite. Unexpectedly smooth. Found in <em>Coco Loco</em>.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
       </section>
-
     </main>
 
     <!-- App-Style Modal Overlay -->

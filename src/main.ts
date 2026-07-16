@@ -239,13 +239,14 @@ document.addEventListener('DOMContentLoaded', () => {
   );
   infoItems.forEach(item => fadeObserver.observe(item));
 
-  // 6. Glass Layer Hover Reveals — show image, dim the corresponding info column
+  // 6. Glass Layer Hover Reveals — show image, dim opposite info column, tilt glass
   const matchaLayer  = document.querySelector('.glass-layer-hoverable[data-layer="matcha"]');
   const milkLayer    = document.querySelector('.glass-layer-hoverable[data-layer="milk"]');
   const revealMatcha = document.querySelector('.layer-reveal-matcha') as HTMLElement | null;
   const revealMilk   = document.querySelector('.layer-reveal-milk') as HTMLElement | null;
   const infoLeft     = document.querySelector('.craft-info-left') as HTMLElement | null;
   const infoRight    = document.querySelector('.craft-info-right') as HTMLElement | null;
+  const glassScene   = document.getElementById('craft-glass-scene') as HTMLElement | null;
 
   const toggleReveal = (reveal: HTMLElement | null, show: boolean) => {
     if (!reveal) return;
@@ -260,10 +261,36 @@ document.addEventListener('DOMContentLoaded', () => {
     col.style.transition = 'opacity 0.35s ease';
   };
 
-  matchaLayer?.addEventListener('mouseenter', () => { toggleReveal(revealMatcha, true);  dimCol(infoLeft, true); });
-  matchaLayer?.addEventListener('mouseleave', () => { toggleReveal(revealMatcha, false); dimCol(infoLeft, false); });
-  milkLayer?.addEventListener('mouseenter',   () => { toggleReveal(revealMilk, true);    dimCol(infoRight, true); });
-  milkLayer?.addEventListener('mouseleave',   () => { toggleReveal(revealMilk, false);   dimCol(infoRight, false); });
+  const tiltGlass = (dir: 'right' | 'left' | null) => {
+    if (!glassScene) return;
+    glassScene.classList.remove('glass-scene-tilt-right', 'glass-scene-tilt-left');
+    if (dir === 'right') glassScene.classList.add('glass-scene-tilt-right');
+    if (dir === 'left')  glassScene.classList.add('glass-scene-tilt-left');
+  };
+
+  // Matcha hover → reveal on RIGHT, hide RIGHT milk info, tilt right
+  matchaLayer?.addEventListener('mouseenter', () => {
+    toggleReveal(revealMatcha, true);
+    dimCol(infoRight, true);
+    tiltGlass('right');
+  });
+  matchaLayer?.addEventListener('mouseleave', () => {
+    toggleReveal(revealMatcha, false);
+    dimCol(infoRight, false);
+    tiltGlass(null);
+  });
+
+  // Milk hover → reveal on LEFT, hide LEFT matcha info, tilt left
+  milkLayer?.addEventListener('mouseenter', () => {
+    toggleReveal(revealMilk, true);
+    dimCol(infoLeft, true);
+    tiltGlass('left');
+  });
+  milkLayer?.addEventListener('mouseleave', () => {
+    toggleReveal(revealMilk, false);
+    dimCol(infoLeft, false);
+    tiltGlass(null);
+  });
 
   // 7. Caffeine Spectrum — animate fill + dot tooltips
   const spectrumFill = document.querySelector('.caf-spectrum-fill') as HTMLElement | null;
