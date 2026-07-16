@@ -1073,7 +1073,7 @@ body {
     height: auto;
     width: 100%;
     max-width: 500px; /* Make bowl bigger */
-    margin: 0 auto -2rem auto; /* Aggressively tighten space below the bowl before text */
+    margin: 0 auto 2rem auto; /* Add space below the bowl before text */
   }
   
   .story-img {
