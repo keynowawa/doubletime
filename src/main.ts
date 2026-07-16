@@ -30,6 +30,12 @@ const flavors = [
 
 document.addEventListener('DOMContentLoaded', () => {
 
+  if (window.location.hash) {
+    // Prevent browser from automatically smoothly scrolling to the hash on load if they refresh
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    window.scrollTo(0, 0);
+  }
+
   // 1. Magnetic Hover on Flavor Cups
   const flavorItems = document.querySelectorAll('.flavor-item');
   flavorItems.forEach((item) => {

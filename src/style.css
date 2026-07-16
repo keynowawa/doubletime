@@ -584,8 +584,8 @@ body {
 .scroll-indicator {
   position: absolute;
   bottom: 3rem;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -707,6 +707,10 @@ body {
   }
   .hero-mascot { margin-bottom: 0.5rem; }
   .hero-title { margin-bottom: 0.2rem; }
+  
+  .scroll-indicator {
+    bottom: 5rem; /* Raise it so it doesn't hide behind mobile address bars */
+  }
 
   /* Story section mobile layout: centered stack */
   .story-section {
