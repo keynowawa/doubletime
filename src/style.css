@@ -1397,29 +1397,37 @@ body {
   50%       { transform: translateY(-10px); }
 }
 
-/* Smooth zoom-into-glass animation — no blur, just pure scale + fade */
+/* When zooming, just fade the glass out — the color wash overlay does the heavy lifting */
 .glass-scene-zoom {
-  animation: zoomIntoGlass 0.8s cubic-bezier(0.4, 0, 0, 1) forwards !important;
+  animation: none !important;
+  opacity: 0 !important;
+  transition: opacity 0.5s ease !important;
   pointer-events: none;
 }
 
-@keyframes zoomIntoGlass {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  40% {
-    transform: scale(5);
-    opacity: 1;
-  }
-  70% {
-    transform: scale(15);
-    opacity: 0.8;
-  }
-  100% {
-    transform: scale(30);
-    opacity: 0;
-  }
+/* Full-screen color wash overlay — expands from clicked layer */
+.zoom-wash {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1999; /* just below modals */
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+.zoom-wash.active {
+  opacity: 1;
+}
+
+.zoom-wash-matcha {
+  background: radial-gradient(circle at var(--wash-x, 50%) var(--wash-y, 40%), rgba(72, 148, 70, 1) 0%, rgba(30, 65, 28, 0.95) 100%);
+}
+
+.zoom-wash-milk {
+  background: radial-gradient(circle at var(--wash-x, 50%) var(--wash-y, 70%), rgba(245, 235, 215, 1) 0%, rgba(210, 195, 170, 0.95) 100%);
 }
 
 /* ---- The Glass Body ---- */

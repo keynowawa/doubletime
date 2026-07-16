@@ -142,10 +142,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.body.style.overflow = '';
     
-    // Unzoom the glass if it was zoomed
+    // Unzoom the glass and hide the wash overlay
     const glassScene = document.getElementById('craft-glass-scene');
+    const zoomWash = document.getElementById('zoom-wash');
     if (glassScene) {
       glassScene.classList.remove('glass-scene-zoom');
+    }
+    if (zoomWash) {
+      zoomWash.classList.remove('active');
     }
   };
 
@@ -256,31 +260,49 @@ document.addEventListener('DOMContentLoaded', () => {
   );
   infoItems.forEach(item => fadeObserver.observe(item));
 
-  // 6. Glass Layer Click to Zoom Modals
+  // 6. Glass Layer Click → Color Wash → Modal
   const matchaLayer  = document.querySelector('.glass-layer-hoverable[data-layer="matcha"]');
   const milkLayer    = document.querySelector('.glass-layer-hoverable[data-layer="milk"]');
   const glassScene   = document.getElementById('craft-glass-scene') as HTMLElement | null;
   const matchaModal  = document.getElementById('matcha-modal');
   const milkModal    = document.getElementById('milk-modal');
+  const zoomWash     = document.getElementById('zoom-wash');
 
-  const openGlassModal = (targetModal: HTMLElement | null) => {
-    if (!glassScene || !targetModal) return;
-    
-    // Step 1: Zoom + fade out the glass
+  const openGlassModal = (layer: 'matcha' | 'milk', layerEl: Element, targetModal: HTMLElement | null) => {
+    if (!glassScene || !targetModal || !zoomWash) return;
+
+    // Get the clicked layer's center position on screen
+    const rect = layerEl.getBoundingClientRect();
+    const cx = ((rect.left + rect.width / 2) / window.innerWidth) * 100;
+    const cy = ((rect.top + rect.height / 2) / window.innerHeight) * 100;
+
+    // Set the radial gradient origin to the clicked layer's position
+    zoomWash.style.setProperty('--wash-x', cx + '%');
+    zoomWash.style.setProperty('--wash-y', cy + '%');
+
+    // Set the color class
+    zoomWash.className = 'zoom-wash zoom-wash-' + layer;
+
+    // Step 1: Fade glass out
     glassScene.classList.add('glass-scene-zoom');
-    
-    // Step 2: After glass has fully dissolved, show the modal
+
+    // Step 2: Activate color wash (slight delay for visual sequence)
+    requestAnimationFrame(() => {
+      zoomWash.classList.add('active');
+    });
+
+    // Step 3: After wash fills screen, open the modal
     setTimeout(() => {
       targetModal.style.display = 'flex';
-      void targetModal.offsetWidth; // Force reflow
+      void targetModal.offsetWidth;
       targetModal.classList.add('active');
       targetModal.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
-    }, 800); // Match the zoomIntoGlass keyframe duration
+    }, 650);
   };
 
-  matchaLayer?.addEventListener('click', () => openGlassModal(matchaModal));
-  milkLayer?.addEventListener('click', () => openGlassModal(milkModal));
+  matchaLayer?.addEventListener('click', () => openGlassModal('matcha', matchaLayer, matchaModal));
+  milkLayer?.addEventListener('click', () => openGlassModal('milk', milkLayer, milkModal));
 
 
   // 7. Caffeine Spectrum — animate fill + dot tooltips
