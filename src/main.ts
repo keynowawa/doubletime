@@ -3,26 +3,41 @@ import './style.css';
 const flavors = [
   {
     title: 'Main Character',
+    sku: 'DT-MAT-CLS',
+    calories: '15 cal',
+    price: '₱190.00',
     desc: 'The classic, pure ceremonial grade matcha from Uji. Perfectly balanced, rich, and vibrant.',
     image: '/assets/cocoloco-front-view.webp' // Placeholder
   },
   {
     title: 'Coco Loco',
+    sku: 'DT-MAT-COC',
+    calories: '120 cal',
+    price: '₱220.00',
     desc: 'A tropical twist of coconut and high-grade matcha. Vacation in a cup.',
     image: '/assets/cocoloco-front-view.webp'
   },
   {
     title: 'Stay Salty',
+    sku: 'DT-MAT-SLT',
+    calories: '90 cal',
+    price: '₱210.00',
     desc: 'A savory, sea-salt infused matcha experience. Unexpectedly addictive.',
-    image: '/assets/cocoloco-front-view.webp'
+    image: '/assets/DT-MAT-SLT.png'
   },
   {
     title: 'Berry Cute',
+    sku: 'DT-MAT-BRY',
+    calories: '110 cal',
+    price: '₱220.00',
     desc: 'Sweet strawberry milk folded into rich matcha. The perfect aesthetic treat.',
     image: '/assets/cocoloco-front-view.webp'
   },
   {
     title: 'Golden Hour',
+    sku: 'DT-MAT-GLD',
+    calories: '80 cal',
+    price: '₱220.00',
     desc: 'A comforting blend of turmeric, spices, and matcha. Warmth in every sip.',
     image: '/assets/cocoloco-front-view.webp'
   }
@@ -76,6 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const modalImg = document.getElementById('modal-img') as HTMLImageElement;
   const modalTitle = document.getElementById('modal-title');
   const modalDesc = document.getElementById('modal-desc');
+  const modalSku = document.getElementById('modal-sku');
+  const modalCal = document.getElementById('modal-cal');
+  const modalPrice = document.getElementById('modal-price');
 
   const openModal = (index: number) => {
     if (!modal || !modalImg || !modalTitle || !modalDesc) return;
@@ -85,6 +103,10 @@ document.addEventListener('DOMContentLoaded', () => {
     modalImg.src = flavor.image;
     modalTitle.textContent = flavor.title;
     modalDesc.textContent = flavor.desc;
+    
+    if (modalSku) modalSku.textContent = flavor.sku;
+    if (modalCal) modalCal.textContent = flavor.calories;
+    if (modalPrice) modalPrice.textContent = flavor.price;
 
     modal.style.display = 'flex';
     // Small delay to allow display: flex to render before adding opacity transition

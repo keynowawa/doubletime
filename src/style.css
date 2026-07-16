@@ -458,6 +458,38 @@ body {
 
 .modal-title {
   font-size: 3.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.modal-meta {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.badge {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.1);
+  letter-spacing: 0.05em;
+  opacity: 0.9;
+}
+
+.cal-badge {
+  background: rgba(144, 238, 144, 0.15);
+  color: #a8d5a2;
+}
+
+.price-tag {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: white;
+  margin-left: 0.5rem;
+  font-family: var(--display-font);
+  letter-spacing: 0.02em;
 }
 
 .modal-desc {
@@ -676,6 +708,28 @@ body {
   margin-bottom: 1.5rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.flavor-meta {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+  justify-content: center;
+}
+
+.flavor-sku, .flavor-cal {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.08);
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+
+.flavor-cal {
+  background: rgba(144, 238, 144, 0.1);
+  color: #a8d5a2;
   opacity: 0.9;
 }
 
