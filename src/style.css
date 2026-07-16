@@ -166,6 +166,9 @@ body {
 
 /* Top Right Let's Talk CTA (Now inside Nav) */
 .top-right-cta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   background: white;
   color: var(--bg-color);
   padding: 0.8rem 2rem;
