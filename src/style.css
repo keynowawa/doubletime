@@ -854,7 +854,7 @@ body {
     width: calc(90vw - 65px); /* Full width minus button and gap */
     left: 5vw;
     top: 2rem;
-    transform: translateY(20px);
+    transform: translateY(0); /* Fixed: Don't shift down when classes are removed */
     display: block;
     gap: 0;
   }
@@ -880,6 +880,7 @@ body {
     padding: 0;
     border-radius: 50px;
     align-items: center;
+    width: 100%; /* Fixed: Override the 55px desktop scrolled width! */
   }
 
   .nav-icon {
@@ -893,6 +894,8 @@ body {
   }
 
   .header-container.fade-slide-up {
+    opacity: 0;
+    transform: translateY(20px);
     animation: fadeSlideUpNavMobile 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
   }
 
