@@ -197,49 +197,47 @@ document.addEventListener('DOMContentLoaded', () => {
     startAutoSlide();
   }
 
-  // 4. Guide Tab Interaction
+  // 4. Craft Tab Interaction (Caffeine / Tasting panels)
   const guideTabs = document.querySelectorAll('.guide-tab');
-  
+
   guideTabs.forEach(tab => {
     tab.addEventListener('click', () => {
-      // Remove active class from all tabs
       guideTabs.forEach(t => t.classList.remove('active'));
-      
-      // Add active class to clicked tab
       tab.classList.add('active');
-      
-      // Hide all decks
-      document.querySelectorAll('.craft-deck').forEach(deck => {
-        deck.classList.remove('active');
-      });
-      
-      // Show target deck
+
       const targetId = tab.getAttribute('data-target');
+      document.querySelectorAll('.craft-panel').forEach(panel => {
+        panel.classList.remove('active');
+      });
+
       if (targetId) {
-        const targetDeck = document.getElementById(targetId);
-        if (targetDeck) {
-          targetDeck.classList.add('active');
+        const target = document.getElementById(targetId);
+        if (target) {
+          // Brief delay so display:none → display:block fires before the opacity transition
+          requestAnimationFrame(() => {
+            target.classList.add('active');
+          });
         }
       }
     });
   });
 
-  // 5. Mobile Touch Support for Hover Slabs
-  const craftSlabs = document.querySelectorAll('.craft-slab');
-  craftSlabs.forEach(slab => {
-    slab.addEventListener('click', () => {
-      // If we are on mobile, we use click to act as hover
-      if (window.innerWidth <= 768) {
-        // Remove touch-active from all slabs in the SAME deck
-        const parentDeck = slab.closest('.craft-deck');
-        if (parentDeck) {
-          parentDeck.querySelectorAll('.craft-slab').forEach(s => s.classList.remove('touch-active'));
+  // 5. IntersectionObserver — fade-in info items on scroll
+  const infoItems = document.querySelectorAll('.craft-info-item');
+  const fadeObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry, i) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => {
+            (entry.target as HTMLElement).classList.add('visible');
+          }, i * 120);
+          fadeObserver.unobserve(entry.target);
         }
-        // Add to this one
-        slab.classList.add('touch-active');
-      }
-    });
-  });
+      });
+    },
+    { threshold: 0.2 }
+  );
+  infoItems.forEach(item => fadeObserver.observe(item));
 
 });
 
