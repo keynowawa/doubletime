@@ -1327,12 +1327,9 @@ body {
   }
 }
 
-/* ============================================
-   THE CRAFT SECTION — INFOGRAPHIC + CSS GLASS
-   ============================================ */
-
+/* The Craft Section — Infographic + CSS Glass */
 .craft-section {
-  padding: 8rem 5vw;
+  padding: 7rem 5vw 5rem;
   max-width: 1200px;
   margin: 0 auto;
   position: relative;
@@ -1340,36 +1337,37 @@ body {
 
 .craft-header {
   text-align: center;
-  margin-bottom: 5rem;
+  margin-bottom: 4rem;
 }
 
 .craft-header h2 {
   font-size: 3.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.6rem;
   letter-spacing: -0.03em;
 }
 
 .craft-subhead {
-  font-size: 1.1rem;
-  opacity: 0.55;
-  letter-spacing: 0.04em;
+  font-size: 1rem;
+  opacity: 0.45;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 /* ---- Infographic 3-col layout ---- */
 .craft-infographic {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 4rem;
+  grid-template-columns: 1fr 240px 1fr;
+  gap: 2rem;
   align-items: center;
-  margin-bottom: 6rem;
+  margin-bottom: 5rem;
 }
 
 /* ---- Info Columns ---- */
 .craft-info-col {
   display: flex;
   flex-direction: column;
-  gap: 2.5rem;
+  gap: 2rem;
+  transition: opacity 0.35s ease;
 }
 
 .craft-info-item {
@@ -1434,7 +1432,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 200px;
+  width: 240px;  /* fixed column width set above */
+  /* tall enough that the absolute reveals don't cause scrollbar */
+  overflow: visible;
 }
 
 .craft-glass-scene {

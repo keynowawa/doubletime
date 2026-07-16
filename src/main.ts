@@ -239,11 +239,13 @@ document.addEventListener('DOMContentLoaded', () => {
   );
   infoItems.forEach(item => fadeObserver.observe(item));
 
-  // 6. Glass Layer Hover Reveals (JS fallback for non-:has() browsers)
-  const matchaLayer = document.querySelector('.glass-layer-hoverable[data-layer="matcha"]');
-  const milkLayer   = document.querySelector('.glass-layer-hoverable[data-layer="milk"]');
+  // 6. Glass Layer Hover Reveals — show image, dim the corresponding info column
+  const matchaLayer  = document.querySelector('.glass-layer-hoverable[data-layer="matcha"]');
+  const milkLayer    = document.querySelector('.glass-layer-hoverable[data-layer="milk"]');
   const revealMatcha = document.querySelector('.layer-reveal-matcha') as HTMLElement | null;
   const revealMilk   = document.querySelector('.layer-reveal-milk') as HTMLElement | null;
+  const infoLeft     = document.querySelector('.craft-info-left') as HTMLElement | null;
+  const infoRight    = document.querySelector('.craft-info-right') as HTMLElement | null;
 
   const toggleReveal = (reveal: HTMLElement | null, show: boolean) => {
     if (!reveal) return;
@@ -251,10 +253,17 @@ document.addEventListener('DOMContentLoaded', () => {
     else reveal.classList.remove('active');
   };
 
-  matchaLayer?.addEventListener('mouseenter', () => toggleReveal(revealMatcha, true));
-  matchaLayer?.addEventListener('mouseleave', () => toggleReveal(revealMatcha, false));
-  milkLayer?.addEventListener('mouseenter',   () => toggleReveal(revealMilk, true));
-  milkLayer?.addEventListener('mouseleave',   () => toggleReveal(revealMilk, false));
+  const dimCol = (col: HTMLElement | null, dim: boolean) => {
+    if (!col) return;
+    col.style.opacity = dim ? '0' : '';
+    col.style.pointerEvents = dim ? 'none' : '';
+    col.style.transition = 'opacity 0.35s ease';
+  };
+
+  matchaLayer?.addEventListener('mouseenter', () => { toggleReveal(revealMatcha, true);  dimCol(infoLeft, true); });
+  matchaLayer?.addEventListener('mouseleave', () => { toggleReveal(revealMatcha, false); dimCol(infoLeft, false); });
+  milkLayer?.addEventListener('mouseenter',   () => { toggleReveal(revealMilk, true);    dimCol(infoRight, true); });
+  milkLayer?.addEventListener('mouseleave',   () => { toggleReveal(revealMilk, false);   dimCol(infoRight, false); });
 
   // 7. Caffeine Spectrum — animate fill + dot tooltips
   const spectrumFill = document.querySelector('.caf-spectrum-fill') as HTMLElement | null;
