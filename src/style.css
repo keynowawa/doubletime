@@ -1807,7 +1807,7 @@ body {
   min-height: 560px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 
@@ -2108,12 +2108,10 @@ body {
 
 @media (max-width: 768px) {
   .modal-overlay {
-    align-items: flex-start;
+    /* align-items defaults to center from desktop rules, so modals center vertically */
     padding: 1rem;
   }
   .modal-content {
-    margin-top: 2rem;
-    margin-bottom: 2rem;
     padding: 2rem 1.5rem;
   }
   .modal-close {
