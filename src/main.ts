@@ -269,14 +269,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Step 1: Zoom + fade out the glass
     glassScene.classList.add('glass-scene-zoom');
     
-    // Step 2: After glass has faded out, show the modal
+    // Step 2: After glass has fully dissolved, show the modal
     setTimeout(() => {
       targetModal.style.display = 'flex';
       void targetModal.offsetWidth; // Force reflow
       targetModal.classList.add('active');
       targetModal.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
-    }, 500); // Wait for zoom+fade to complete
+    }, 700); // Match the zoomIntoGlass keyframe duration
   };
 
   matchaLayer?.addEventListener('click', () => openGlassModal(matchaModal));

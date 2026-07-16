@@ -404,29 +404,6 @@ body {
   will-change: opacity, visibility;
 }
 
-/* Modals for Matcha and Milk - overrides overlay background */
-#matcha-modal {
-  background: rgba(45, 90, 43, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
-
-#milk-modal {
-  background: rgba(245, 240, 230, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-}
-
-/* Themed close buttons */
-#milk-modal .modal-close {
-  color: #333;
-}
-#milk-modal .modal-title,
-#milk-modal .modal-desc,
-#milk-modal .craft-info-title {
-  color: #222;
-}
-
 .modal-overlay.active {
   opacity: 1;
   visibility: visible;
@@ -1415,13 +1392,28 @@ body {
   50%       { transform: translateY(-10px); }
 }
 
-/* Zoom: scale up massively and fade out so it disappears behind modal */
+/* Smooth zoom-into-glass animation */
 .glass-scene-zoom {
-  animation: none !important;
-  transform: scale(6) !important;
-  opacity: 0 !important;
-  filter: blur(8px) !important;
+  animation: zoomIntoGlass 0.7s cubic-bezier(0.4, 0, 0, 1) forwards !important;
   pointer-events: none;
+}
+
+@keyframes zoomIntoGlass {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+  60% {
+    transform: scale(4);
+    opacity: 0.6;
+    filter: blur(2px);
+  }
+  100% {
+    transform: scale(8);
+    opacity: 0;
+    filter: blur(12px);
+  }
 }
 
 /* ---- The Glass Body ---- */
@@ -1762,229 +1754,51 @@ body {
   .craft-infographic { gap: 2.5rem; }
 }
 
-/* ---- Craft Glass Modals (Apple Card Layout) ---- */
-.craft-modal {
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+/* ---- Craft Modal Color Overrides (reuses .modal-content/.modal-body) ---- */
+#matcha-modal.modal-overlay {
+  background: rgba(30, 65, 28, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
-#matcha-modal {
-  background: rgba(30, 65, 28, 0.92);
+#milk-modal.modal-overlay {
+  background: rgba(210, 195, 170, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
-#milk-modal {
-  background: rgba(240, 235, 225, 0.95);
+/* Milk modal: dark text overrides */
+#milk-modal .modal-close { color: #333; }
+#milk-modal .modal-title { color: #1a1a1a; }
+#milk-modal .modal-desc { color: #444; }
+#milk-modal .rich-badge {
+  color: #555;
+  border-color: rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.04);
 }
 
-.craft-modal-card {
-  width: 90%;
-  max-width: 480px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 24px;
-  overflow: hidden;
-  position: relative;
-  transform: scale(0.92) translateY(20px);
-  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
-              opacity 0.3s ease;
-  opacity: 0;
-}
-
-.modal-overlay.active .craft-modal-card {
-  transform: scale(1) translateY(0);
-  opacity: 1;
-}
-
-/* Milk theme overrides */
-.craft-modal-card.milk-theme {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(0, 0, 0, 0.08);
-}
-
-.craft-modal-card.milk-theme .modal-close {
-  color: #333;
-}
-
-.craft-modal-card.milk-theme .craft-modal-label {
-  color: rgba(0, 0, 0, 0.4);
-}
-
-.craft-modal-card.milk-theme .craft-modal-title {
-  color: #1a1a1a;
-}
-
-.craft-modal-card.milk-theme .craft-modal-desc {
-  color: #444;
-}
-
-/* ---- Modal Close ---- */
-.craft-modal-card .modal-close {
-  position: absolute;
-  top: 1rem;
-  right: 1.2rem;
-  z-index: 20;
-  font-size: 2rem;
-  background: rgba(0, 0, 0, 0.2);
-  border: none;
-  color: white;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
+/* Milk modal: side-by-side images */
+.milk-modal-images {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  font-family: var(--ui-font);
-  line-height: 1;
-}
-
-.craft-modal-card .modal-close:hover {
-  background: rgba(0, 0, 0, 0.35);
-}
-
-.craft-modal-card.milk-theme .modal-close {
-  background: rgba(0, 0, 0, 0.06);
-  color: #333;
-}
-
-.craft-modal-card.milk-theme .modal-close:hover {
-  background: rgba(0, 0, 0, 0.12);
-}
-
-/* ---- Modal Hero (Image Area) ---- */
-.craft-modal-hero {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 2rem 2rem;
   gap: 1.5rem;
-  background: rgba(0, 0, 0, 0.1);
+  justify-content: center;
+  align-items: flex-end;
 }
 
-.craft-modal-card.milk-theme .craft-modal-hero {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-.craft-modal-hero-img {
-  max-height: 200px;
+.milk-modal-images .modal-img {
   max-width: 160px;
-  object-fit: contain;
-  filter: drop-shadow(0 12px 24px rgba(0,0,0,0.3));
+  max-height: 200px;
 }
 
-/* ---- Modal Details (Text Area) ---- */
-.craft-modal-details {
-  padding: 2rem 2.5rem 2.5rem;
+/* Make glass layers clickable */
+.glass-layer-hoverable {
+  cursor: pointer;
+  transition: filter 0.3s ease;
 }
 
-.craft-modal-label {
-  display: block;
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.5;
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 0.75rem;
+.glass-layer-hoverable:hover {
+  filter: brightness(1.15);
 }
-
-.craft-modal-title {
-  font-size: 2rem;
-  color: white;
-  margin-bottom: 1rem;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-
-.craft-modal-desc {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.75);
-  line-height: 1.7;
-  margin-bottom: 1.5rem;
-}
-
-/* Origin callout (matcha) */
-.craft-modal-origin {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.8rem;
-  padding: 1rem 1.2rem;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.craft-modal-origin svg {
-  flex-shrink: 0;
-  margin-top: 2px;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.craft-modal-origin strong {
-  display: block;
-  font-size: 0.95rem;
-  color: white;
-  margin-bottom: 0.25rem;
-}
-
-.craft-modal-origin span {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.55);
-}
-
-/* Milk cards (milk modal) */
-.craft-modal-milk-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
-
-.craft-modal-milk-card {
-  padding: 1rem 1.2rem;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.craft-modal-milk-card strong {
-  display: block;
-  font-size: 1.05rem;
-  color: #1a1a1a;
-  margin-bottom: 0.3rem;
-}
-
-.craft-modal-milk-card p {
-  font-size: 0.9rem;
-  color: #666;
-  line-height: 1.6;
-  margin: 0;
-}
-
-/* ---- Mobile: Craft Modals ---- */
-@media (max-width: 768px) {
-  .craft-modal-card {
-    width: 94%;
-    max-width: 400px;
-  }
-  
-  .craft-modal-hero {
-    padding: 2rem 1.5rem 1.5rem;
-  }
-  
-  .craft-modal-hero-img {
-    max-height: 160px;
-    max-width: 130px;
-  }
-  
-  .craft-modal-details {
-    padding: 1.5rem 1.5rem 2rem;
-  }
-  
-  .craft-modal-title {
-    font-size: 1.6rem;
-  }
-}
-
 
 
 /* ---- Caffeine Spectrum ---- */

@@ -306,48 +306,42 @@
 
     <script type="module" src="/src/main.ts"></script>
 
-    <!-- Matcha Glass Modal -->
-    <div class="modal-overlay craft-modal" id="matcha-modal" aria-hidden="true" style="display: none;">
-      <div class="craft-modal-card">
+    <!-- Matcha Glass Modal — same design as flavors modal -->
+    <div class="modal-overlay" id="matcha-modal" aria-hidden="true" style="display: none;">
+      <div class="modal-content">
         <button class="modal-close" aria-label="Close Modal">×</button>
-        <div class="craft-modal-hero">
-          <img src="/assets/matchapowder.png" alt="Ceremonial Grade Matcha" class="craft-modal-hero-img" />
-        </div>
-        <div class="craft-modal-details">
-          <span class="craft-modal-label ui-text">The Green Layer</span>
-          <h3 class="craft-modal-title display-font">Ceremonial Grade Matcha</h3>
-          <p class="craft-modal-desc ui-text">First-harvest shade-grown leaves, stone-ground to a silky powder for a vibrant, rich taste.</p>
-          <div class="craft-modal-origin">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-            <div>
-              <strong>Uji, Kyoto — Japan</strong>
-              <span>800+ years of matcha tradition</span>
+        <div class="modal-body">
+          <img src="/assets/matchapowder.png" alt="Ceremonial Grade Matcha" class="modal-img" />
+          <div class="modal-info">
+            <h3 class="modal-title display-font">Ceremonial Grade Matcha</h3>
+            <div class="modal-badges ui-text">
+              <span class="badge rich-badge">First Harvest</span>
+              <span class="badge rich-badge">Shade-Grown</span>
+              <span class="badge rich-badge">Stone-Ground</span>
             </div>
+            <p class="modal-desc ui-text">First-harvest shade-grown leaves from Uji, Kyoto — the spiritual home of Japanese matcha with over 800 years of tradition. Stone-ground to a silky powder for deep umami and zero bitterness.</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Milk Glass Modal -->
-    <div class="modal-overlay craft-modal" id="milk-modal" aria-hidden="true" style="display: none;">
-      <div class="craft-modal-card milk-theme">
+    <!-- Milk Glass Modal — same design as flavors modal -->
+    <div class="modal-overlay" id="milk-modal" aria-hidden="true" style="display: none;">
+      <div class="modal-content">
         <button class="modal-close" aria-label="Close Modal">×</button>
-        <div class="craft-modal-hero milk-hero">
-          <img src="/assets/oatside.png" alt="Oatside" class="craft-modal-hero-img" />
-          <img src="/assets/sogood.png" alt="So Good" class="craft-modal-hero-img" />
-        </div>
-        <div class="craft-modal-details">
-          <span class="craft-modal-label ui-text">The Cream Layer</span>
-          <h3 class="craft-modal-title display-font">Premium Oat Milks</h3>
-          <div class="craft-modal-milk-cards">
-            <div class="craft-modal-milk-card">
-              <strong class="display-font">Oatside</strong>
-              <p class="ui-text">Rich, creamy, naturally sweet — perfect foam every time.</p>
+        <div class="modal-body">
+          <div class="milk-modal-images">
+            <img src="/assets/oatside.png" alt="Oatside" class="modal-img" />
+            <img src="/assets/sogood.png" alt="So Good" class="modal-img" />
+          </div>
+          <div class="modal-info">
+            <h3 class="modal-title display-font">Premium Oat Milks</h3>
+            <div class="modal-badges ui-text">
+              <span class="badge rich-badge">Dairy-Free</span>
+              <span class="badge rich-badge">Creamy</span>
+              <span class="badge rich-badge">Plant-Based</span>
             </div>
-            <div class="craft-modal-milk-card">
-              <strong class="display-font">So Good Unsweetened</strong>
-              <p class="ui-text">Zero-sugar alternative. Lets the natural umami fully shine.</p>
-            </div>
+            <p class="modal-desc ui-text">We use Oatside for its rich, naturally sweet foam and So Good Unsweetened as a zero-sugar alternative that lets the matcha's natural umami fully shine.</p>
           </div>
         </div>
       </div>
