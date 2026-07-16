@@ -36,6 +36,16 @@ document.addEventListener('DOMContentLoaded', () => {
     window.scrollTo(0, 0);
   }
 
+  // Navbar Scroll Animation
+  const nav = document.querySelector('.floating-nav');
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 50) {
+      nav?.classList.add('scrolled');
+    } else {
+      nav?.classList.remove('scrolled');
+    }
+  });
+
   // 1. Magnetic Hover on Flavor Cups
   const flavorItems = document.querySelectorAll('.flavor-item');
   flavorItems.forEach((item) => {
