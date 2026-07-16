@@ -5,7 +5,7 @@ const flavors = [
     title: 'Main Character',
     calories: '15 cal',
     price: '₱190.00',
-    tags: ['Vegan', 'Hot & Iced', 'Umami Rich', 'High Caffeine'],
+    tags: ['Vegan', 'Hot & Iced', 'Umami', 'High Caffeine'],
     desc: 'The classic, pure ceremonial grade matcha from Uji. Perfectly balanced, rich, and vibrant.',
     image: '/assets/cocoloco-front-view.webp'
   },
@@ -13,7 +13,7 @@ const flavors = [
     title: 'Coco Loco',
     calories: '120 cal',
     price: '₱220.00',
-    tags: ['Dairy-Free', 'Iced Only', 'Nutty & Sweet', 'Smooth Energy'],
+    tags: ['Dairy-Free', 'Iced Only', 'Nutty', 'Smooth Energy'],
     desc: 'A tropical twist of coconut and high-grade matcha. Vacation in a cup.',
     image: '/assets/cocoloco-front-view.webp'
   },
@@ -21,7 +21,7 @@ const flavors = [
     title: 'Stay Salty',
     calories: '90 cal',
     price: '₱210.00',
-    tags: ['Contains Dairy', 'Iced Only', 'Savory Sweet', 'Smooth Energy'],
+    tags: ['Contains Dairy', 'Iced Only', 'Savory', 'Smooth Energy'],
     desc: 'A savory, sea-salt infused matcha experience. Unexpectedly addictive.',
     image: '/assets/DT-MAT-SLT.png'
   },
@@ -29,7 +29,7 @@ const flavors = [
     title: 'Berry Cute',
     calories: '110 cal',
     price: '₱220.00',
-    tags: ['Contains Dairy', 'Iced Only', 'Fruity & Creamy', 'Smooth Energy'],
+    tags: ['Contains Dairy', 'Iced Only', 'Fruity', 'Smooth Energy'],
     desc: 'Sweet strawberry milk folded into rich matcha. The perfect aesthetic treat.',
     image: '/assets/cocoloco-front-view.webp'
   },
@@ -37,8 +37,8 @@ const flavors = [
     title: 'Golden Hour',
     calories: '80 cal',
     price: '₱220.00',
-    tags: ['Vegan', 'Hot & Iced', 'Earthy & Spiced', 'Caffeine-Free Alternative'],
-    desc: 'A comforting blend of turmeric, spices, and matcha. Warmth in every sip.',
+    tags: ['Vegan', 'Hot & Iced', 'Earthy', 'Caffeine-Free Alternative'],
+    desc: 'Turmeric and ginger meet creamy oat milk for a warming, spice-forward latte.',
     image: '/assets/cocoloco-front-view.webp'
   }
 ];
@@ -351,7 +351,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
-
+  // 9. Editorial Slideshow
+  const slides = document.querySelectorAll('.editorial-section .slide');
+  if (slides.length > 1) {
+    let currentSlide = 0;
+    setInterval(() => {
+      slides[currentSlide].classList.remove('active');
+      currentSlide = (currentSlide + 1) % slides.length;
+      slides[currentSlide].classList.add('active');
+    }, 4500); // 4.5 seconds
+  }
 });
 
 // Scroll to top on reload (before DOM fully loaded paints)
