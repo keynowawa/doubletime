@@ -1108,3 +1108,210 @@ body {
   .footer-brand { align-items: center; }
   .news-slider { aspect-ratio: 851/315; } 
 }
+
+/* Guide Section (Bento Box) */
+.guide-section {
+  padding: 8rem 5vw;
+  max-width: 1200px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.guide-header {
+  text-align: center;
+  margin-bottom: 4rem;
+}
+
+.guide-header h2 {
+  font-size: 3.5rem;
+  margin-bottom: 2rem;
+}
+
+.guide-tabs {
+  display: inline-flex;
+  background: rgba(255,255,255,0.05);
+  border-radius: 50px;
+  padding: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.guide-tab {
+  background: transparent;
+  border: none;
+  color: white;
+  padding: 0.8rem 2rem;
+  border-radius: 40px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+  font-family: var(--ui-font);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.guide-tab.active {
+  background: rgba(255,255,255,0.15);
+  opacity: 1;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.guide-content-wrapper {
+  position: relative;
+  min-height: 400px; /* Prevent layout jumps */
+}
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px);
+  transition: all 0.5s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.bento-grid.active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  position: relative;
+}
+
+.bento-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 24px;
+  padding: 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: transform 0.3s ease, background 0.3s ease;
+}
+
+.bento-card:hover {
+  transform: translateY(-5px);
+  background: rgba(255,255,255,0.06);
+}
+
+.bento-card.span-2 {
+  grid-column: span 2;
+}
+
+.bento-card.highlight-card {
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.02) 100%);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.bento-icon-wrapper {
+  background: rgba(255,255,255,0.1);
+  padding: 1rem;
+  border-radius: 16px;
+  margin-bottom: 2rem;
+  display: inline-flex;
+}
+
+.bento-card h3 {
+  font-size: 2.2rem;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.bento-card p {
+  font-size: 1.1rem;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+
+.bento-badge {
+  font-size: 0.85rem !important;
+  padding: 0.4rem 1rem !important;
+}
+
+/* Ingredients Section */
+.ingredients-section {
+  padding: 6rem 5vw;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.ingredients-header {
+  text-align: center;
+  margin-bottom: 4rem;
+}
+
+.ingredients-header h2 {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+}
+
+.ingredients-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.ingredient-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 32px;
+  padding: 4rem 3rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.ingredient-card:hover {
+  transform: translateY(-8px);
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.15);
+}
+
+.ingredient-icon-wrapper {
+  background: rgba(255,255,255,0.05);
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 2.5rem;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.ingredient-content h3 {
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.ingredient-content p {
+  font-size: 1.15rem;
+  line-height: 1.7;
+  opacity: 0.85;
+}
+
+@media (max-width: 768px) {
+  .guide-header h2 { font-size: 2.5rem; }
+  .guide-tab { padding: 0.6rem 1.2rem; font-size: 0.95rem; }
+  .bento-grid { grid-template-columns: 1fr; gap: 1rem; }
+  .bento-card.span-2 { grid-column: span 1; }
+  .bento-card { padding: 2rem; }
+  .bento-card h3 { font-size: 1.8rem; }
+  .ingredients-grid { grid-template-columns: 1fr; }
+  .ingredient-card { padding: 3rem 2rem; }
+  .ingredient-content h3 { font-size: 2rem; }
+}

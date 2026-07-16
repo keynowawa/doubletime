@@ -197,6 +197,33 @@ document.addEventListener('DOMContentLoaded', () => {
     startAutoSlide();
   }
 
+  // 4. Guide Tab Interaction
+  const guideTabs = document.querySelectorAll('.guide-tab');
+  
+  guideTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Remove active class from all tabs
+      guideTabs.forEach(t => t.classList.remove('active'));
+      
+      // Add active class to clicked tab
+      tab.classList.add('active');
+      
+      // Hide all bento grids
+      document.querySelectorAll('.bento-grid').forEach(grid => {
+        grid.classList.remove('active');
+      });
+      
+      // Show target bento grid
+      const targetId = tab.getAttribute('data-target');
+      if (targetId) {
+        const targetGrid = document.getElementById(targetId);
+        if (targetGrid) {
+          targetGrid.classList.add('active');
+        }
+      }
+    });
+  });
+
 });
 
 // Scroll to top on reload (before DOM fully loaded paints)
