@@ -880,7 +880,19 @@ body {
     padding: 0;
     border-radius: 50px;
     align-items: center;
-    width: 100%; /* Fixed: Override the 55px desktop scrolled width! */
+    width: 100%;
+    overflow: visible;
+  }
+
+  .header-container.scrolled .nav-links {
+    flex-direction: row;
+    width: auto;
+  }
+
+  .header-container.scrolled .nav-link {
+    flex-direction: row;
+    width: auto;
+    padding-right: 0;
   }
 
   .nav-icon {
