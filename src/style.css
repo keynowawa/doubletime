@@ -582,8 +582,10 @@ body {
 
 /* Scroll Indicator */
 .scroll-indicator {
-  position: relative;
-  margin-top: 4rem;
+  position: absolute;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -698,6 +700,13 @@ body {
   .hero {
     min-height: 100vh;
   }
+  
+  /* Shift hero content up and tighten text spacing on mobile */
+  .hero-content {
+    margin-top: -15vh; /* Moves everything up significantly */
+  }
+  .hero-mascot { margin-bottom: 0.5rem; }
+  .hero-title { margin-bottom: 0.2rem; }
 
   /* Story section mobile layout: centered stack */
   .story-section {
