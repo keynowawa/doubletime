@@ -62,36 +62,59 @@ body {
   }
 }
 
-/* Floating Pill Nav */
-.floating-nav {
+/* Header Container */
+.header-container {
   position: fixed;
   top: 2rem;
   left: 50%;
-  transform: translateX(-50%) translateY(20px); /* For initial animation state */
+  transform: translateX(-50%) translateY(20px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: top 0.6s cubic-bezier(0.165, 0.84, 0.44, 1),
+              left 0.6s cubic-bezier(0.165, 0.84, 0.44, 1),
+              transform 0.6s cubic-bezier(0.165, 0.84, 0.44, 1),
+              gap 0.4s;
+}
+
+/* Scrolled state: gracefully slide to the right and become vertical */
+.header-container.scrolled {
+  animation: none !important;
+  opacity: 1;
+  top: 50%;
+  left: 100%;
+  transform: translateX(calc(-100% - 2rem)) translateY(-50%);
+  flex-direction: column;
+  gap: 0.8rem;
+  align-items: flex-end;
+}
+
+/* Floating Pill Nav */
+.floating-nav {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: 50px;
-  padding: 0.6rem 0.6rem 0.6rem 2.5rem; /* Asymmetrical padding to snugly fit the button */
-  z-index: 1000;
+  padding: 0.8rem 2rem;
   border: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
   gap: 2.5rem;
-  transition: left 0.6s cubic-bezier(0.165, 0.84, 0.44, 1), transform 0.6s cubic-bezier(0.165, 0.84, 0.44, 1), background 0.4s;
+  transition: all 0.4s ease;
 }
 
-/* Scrolled state: gracefully slide to the right */
-.floating-nav.scrolled {
-  animation: none !important; /* Disables the intro animation lock */
-  opacity: 1;
-  left: 100%;
-  transform: translateX(calc(-100% - 2rem)) translateY(0);
-}
-
-/* Override transform for animation end state specifically for nav */
-.floating-nav.fade-slide-up {
+/* Override transform for animation end state */
+.header-container.fade-slide-up {
   animation: fadeSlideUpNav 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+}
+
+.header-container.scrolled .floating-nav {
+  flex-direction: column;
+  padding: 1.5rem 1rem;
+  border-radius: 50px;
+  gap: 1.5rem;
+  align-items: flex-end;
 }
 
 @keyframes fadeSlideUpNav {
@@ -105,9 +128,19 @@ body {
   display: flex;
   gap: 2rem;
   list-style: none;
+  transition: all 0.4s ease;
+}
+
+.header-container.scrolled .nav-links {
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: flex-end;
 }
 
 .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   color: var(--text-color);
   font-weight: 500;
   font-size: 0.95rem;
@@ -116,6 +149,29 @@ body {
   text-decoration: none;
   opacity: 0.8;
   transition: opacity 0.2s ease;
+}
+
+.header-container.scrolled .nav-link {
+  flex-direction: row-reverse;
+}
+
+.nav-text {
+  max-width: 150px;
+  opacity: 1;
+  transition: max-width 0.4s cubic-bezier(0.165, 0.84, 0.44, 1), opacity 0.4s, padding 0.4s;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.header-container.scrolled .nav-text {
+  max-width: 0;
+  opacity: 0;
+}
+
+.header-container.scrolled .floating-nav:hover .nav-text {
+  max-width: 150px;
+  opacity: 1;
+  padding-right: 0.8rem;
 }
 
 .nav-link:hover {
@@ -173,7 +229,7 @@ body {
   100% { transform: scale(1) translateY(0); filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
 }
 
-/* Top Right Let's Talk CTA (Now inside Nav) */
+/* Top Right Let's Talk CTA (Now outside Nav, but inside Header Container) */
 .top-right-cta {
   display: flex;
   align-items: center;
@@ -188,7 +244,29 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s;
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.header-container.scrolled .top-right-cta {
+  flex-direction: row-reverse;
+  padding: 1rem;
+  border-radius: 50%;
+}
+
+.header-container.scrolled .top-right-cta .nav-text {
+  max-width: 0;
+  opacity: 0;
+}
+
+.header-container.scrolled:hover .top-right-cta {
+  border-radius: 50px;
+  padding: 1rem 1.5rem;
+}
+
+.header-container.scrolled:hover .top-right-cta .nav-text {
+  max-width: 150px;
+  opacity: 1;
+  padding-right: 0.5rem;
 }
 
 .top-right-cta:hover {
@@ -757,23 +835,49 @@ body {
     z-index: 1000;
   }
 
-  .floating-nav {
+  .header-container {
     width: calc(90vw - 65px); /* Full width minus button and gap */
+    left: 5vw;
+    top: 2rem;
+    transform: translateY(20px);
+    display: block;
+    gap: 0;
+  }
+
+  .header-container.scrolled {
+    top: 2rem;
+    left: 5vw;
+    transform: translateY(0);
+    flex-direction: row;
+  }
+
+  .floating-nav {
+    width: 100%;
     height: 55px;
     padding: 0;
-    display: flex;
     justify-content: center;
+    position: static;
+    transform: none;
+  }
+
+  .header-container.scrolled .floating-nav {
+    flex-direction: row;
+    padding: 0;
+    border-radius: 50px;
     align-items: center;
-    left: 5vw;
-    transform: translateY(20px);
   }
 
-  .floating-nav.scrolled {
-    left: 5vw; /* Lock it in place on mobile */
-    transform: translateY(0);
+  .nav-icon {
+    display: none;
   }
 
-  .floating-nav.fade-slide-up {
+  .nav-text {
+    max-width: none !important;
+    opacity: 1 !important;
+    padding: 0 !important;
+  }
+
+  .header-container.fade-slide-up {
     animation: fadeSlideUpNavMobile 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
   }
 
@@ -784,7 +888,8 @@ body {
     }
   }
   .nav-links {
-    gap: 1rem;
+    gap: 1.5rem;
+    justify-content: center;
   }
   .top-right-cta {
     display: none; 

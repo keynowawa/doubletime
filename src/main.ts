@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Navbar Scroll Animation
-  const nav = document.querySelector('.floating-nav');
+  const nav = document.querySelector('.header-container');
   window.addEventListener('scroll', () => {
     if (window.scrollY > 50) {
       nav?.classList.add('scrolled');
