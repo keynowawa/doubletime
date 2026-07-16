@@ -838,18 +838,7 @@ body {
 @media (max-width: 768px) {
   /* Mobile Chat Button separated */
   .mobile-chat-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 55px;
-    height: 55px;
-    border-radius: 50%;
-    background: white;
-    color: var(--bg-color);
-    position: fixed;
-    top: 2rem;
-    right: 5vw;
-    z-index: 1000;
+    display: none !important;
   }
 
   .header-container {
@@ -859,7 +848,8 @@ body {
     transform: translateX(-50%) translateY(0); /* Center perfectly */
     display: flex;
     justify-content: center;
-    gap: 0;
+    align-items: center;
+    gap: 1rem; /* Perfect spacing between nav bar and get matcha button */
   }
 
   .header-container.scrolled {
@@ -867,6 +857,8 @@ body {
     left: 50%;
     transform: translateX(-50%) translateY(0);
     flex-direction: row;
+    align-items: center;
+    gap: 1rem;
   }
 
   .floating-nav {
@@ -929,8 +921,25 @@ body {
     gap: 1.5rem;
     justify-content: center;
   }
-  .top-right-cta {
-    display: none; 
+  .top-right-cta,
+  .header-container.scrolled .top-right-cta,
+  .header-container.scrolled:hover .top-right-cta {
+    display: flex !important;
+    width: 55px !important;
+    height: 55px !important;
+    padding: 0 !important;
+    justify-content: center !important;
+    align-items: center !important;
+    border-radius: 50% !important;
+    flex-direction: row !important;
+  }
+
+  .top-right-cta .nav-text {
+    display: none !important;
+  }
+  
+  .top-right-cta svg {
+    margin: 0 !important;
   }
 
   /* Adjust Hero to be full screen on mobile so the bowl is hidden on load */
