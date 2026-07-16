@@ -266,22 +266,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const openGlassModal = (targetModal: HTMLElement | null) => {
     if (!glassScene || !targetModal) return;
     
-    // Zoom in the glass
+    // Step 1: Zoom + fade out the glass
     glassScene.classList.add('glass-scene-zoom');
     
-    // Open the modal after a short delay so the zoom effect is visible
+    // Step 2: After glass has faded out, show the modal
     setTimeout(() => {
       targetModal.style.display = 'flex';
-      // Force reflow
-      void targetModal.offsetWidth;
+      void targetModal.offsetWidth; // Force reflow
       targetModal.classList.add('active');
       targetModal.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
-    }, 150);
+    }, 500); // Wait for zoom+fade to complete
   };
 
   matchaLayer?.addEventListener('click', () => openGlassModal(matchaModal));
   milkLayer?.addEventListener('click', () => openGlassModal(milkModal));
+
 
   // 7. Caffeine Spectrum — animate fill + dot tooltips
   const spectrumFill = document.querySelector('.caf-spectrum-fill') as HTMLElement | null;

@@ -1393,8 +1393,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 240px;  /* fixed column width set above */
-  /* tall enough that the absolute reveals don't cause scrollbar */
+  width: 320px;
   overflow: visible;
 }
 
@@ -1404,25 +1403,32 @@ body {
   flex-direction: column;
   align-items: center;
   animation: glassFloat 5s ease-in-out infinite;
-  transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1),
+  transition: transform 0.7s cubic-bezier(0.25, 1, 0.5, 1),
+              opacity 0.4s ease,
               filter 0.4s ease;
   cursor: pointer;
   z-index: 10;
 }
 
-/* New Zoom Class applied via JS */
+@keyframes glassFloat {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-10px); }
+}
+
+/* Zoom: scale up massively and fade out so it disappears behind modal */
 .glass-scene-zoom {
   animation: none !important;
-  transform: scale(2.2) translateY(20px) !important;
-  filter: drop-shadow(0 40px 60px rgba(0,0,0,0.5)) !important;
-  z-index: 2100; /* above overlay */
+  transform: scale(6) !important;
+  opacity: 0 !important;
+  filter: blur(8px) !important;
+  pointer-events: none;
 }
 
 /* ---- The Glass Body ---- */
 .css-glass {
   position: relative;
-  width: 110px;
-  height: 220px;
+  width: 180px;
+  height: 280px;
   background: linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.08) 0%,
@@ -1481,9 +1487,9 @@ body {
   z-index: 5;
 }
 
-.ice-1 { width: 28px; height: 22px; bottom: 50%; left: 12%; transform: rotate(-8deg); }
-.ice-2 { width: 22px; height: 26px; bottom: 48%; right: 14%; transform: rotate(12deg); }
-.ice-3 { width: 18px; height: 18px; bottom: 52%; left: 38%; transform: rotate(4deg); }
+.ice-1 { width: 36px; height: 28px; bottom: 50%; left: 12%; transform: rotate(-8deg); }
+.ice-2 { width: 28px; height: 32px; bottom: 48%; right: 14%; transform: rotate(12deg); }
+.ice-3 { width: 24px; height: 24px; bottom: 52%; left: 38%; transform: rotate(4deg); }
 
 /* ---- Milk Layer (bottom ~45%) ---- */
 .glass-layer-milk {
@@ -1573,8 +1579,8 @@ body {
 
 /* ---- Glass Base ---- */
 .glass-base {
-  width: 120px;
-  height: 10px;
+  width: 192px;
+  height: 12px;
   background: linear-gradient(
     to bottom,
     rgba(255,255,255,0.12),
@@ -1588,10 +1594,10 @@ body {
 /* ---- Straw ---- */
 .glass-straw {
   position: absolute;
-  top: -50px;
-  right: 30px;
-  width: 8px;
-  height: 130px;
+  top: -55px;
+  right: 45px;
+  width: 10px;
+  height: 160px;
   background: linear-gradient(
     to right,
     rgba(255,255,255,0.3),
@@ -1610,10 +1616,10 @@ body {
   bottom: -20px;
   left: 50%;
   transform: translateX(-50%);
-  width: 120px;
-  height: 30px;
+  width: 180px;
+  height: 40px;
   background: rgba(94, 175, 70, 0.2);
-  filter: blur(20px);
+  filter: blur(24px);
   border-radius: 50%;
   transition: opacity 0.4s ease;
   opacity: 0.5;
@@ -1756,20 +1762,229 @@ body {
   .craft-infographic { gap: 2.5rem; }
 }
 
-/* Removed hover reveals CSS completely */
-
-/* Make layers hoverable */
-.glass-layer-hoverable {
-  pointer-events: auto;
-  cursor: crosshair;
-  transition: filter 0.3s ease;
+/* ---- Craft Glass Modals (Apple Card Layout) ---- */
+.craft-modal {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
-.glass-layer-hoverable:hover {
-  filter: brightness(1.15);
+#matcha-modal {
+  background: rgba(30, 65, 28, 0.92);
 }
 
-/* Removed Tilt classes added by JS on hover */
+#milk-modal {
+  background: rgba(240, 235, 225, 0.95);
+}
+
+.craft-modal-card {
+  width: 90%;
+  max-width: 480px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  transform: scale(0.92) translateY(20px);
+  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+              opacity 0.3s ease;
+  opacity: 0;
+}
+
+.modal-overlay.active .craft-modal-card {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+/* Milk theme overrides */
+.craft-modal-card.milk-theme {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.craft-modal-card.milk-theme .modal-close {
+  color: #333;
+}
+
+.craft-modal-card.milk-theme .craft-modal-label {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.craft-modal-card.milk-theme .craft-modal-title {
+  color: #1a1a1a;
+}
+
+.craft-modal-card.milk-theme .craft-modal-desc {
+  color: #444;
+}
+
+/* ---- Modal Close ---- */
+.craft-modal-card .modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1.2rem;
+  z-index: 20;
+  font-size: 2rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: none;
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  font-family: var(--ui-font);
+  line-height: 1;
+}
+
+.craft-modal-card .modal-close:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.craft-modal-card.milk-theme .modal-close {
+  background: rgba(0, 0, 0, 0.06);
+  color: #333;
+}
+
+.craft-modal-card.milk-theme .modal-close:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* ---- Modal Hero (Image Area) ---- */
+.craft-modal-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem 2rem;
+  gap: 1.5rem;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.craft-modal-card.milk-theme .craft-modal-hero {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.craft-modal-hero-img {
+  max-height: 200px;
+  max-width: 160px;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 24px rgba(0,0,0,0.3));
+}
+
+/* ---- Modal Details (Text Area) ---- */
+.craft-modal-details {
+  padding: 2rem 2.5rem 2.5rem;
+}
+
+.craft-modal-label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0.75rem;
+}
+
+.craft-modal-title {
+  font-size: 2rem;
+  color: white;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.craft-modal-desc {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+
+/* Origin callout (matcha) */
+.craft-modal-origin {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 1rem 1.2rem;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.craft-modal-origin svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.craft-modal-origin strong {
+  display: block;
+  font-size: 0.95rem;
+  color: white;
+  margin-bottom: 0.25rem;
+}
+
+.craft-modal-origin span {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Milk cards (milk modal) */
+.craft-modal-milk-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.craft-modal-milk-card {
+  padding: 1rem 1.2rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.craft-modal-milk-card strong {
+  display: block;
+  font-size: 1.05rem;
+  color: #1a1a1a;
+  margin-bottom: 0.3rem;
+}
+
+.craft-modal-milk-card p {
+  font-size: 0.9rem;
+  color: #666;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ---- Mobile: Craft Modals ---- */
+@media (max-width: 768px) {
+  .craft-modal-card {
+    width: 94%;
+    max-width: 400px;
+  }
+  
+  .craft-modal-hero {
+    padding: 2rem 1.5rem 1.5rem;
+  }
+  
+  .craft-modal-hero-img {
+    max-height: 160px;
+    max-width: 130px;
+  }
+  
+  .craft-modal-details {
+    padding: 1.5rem 1.5rem 2rem;
+  }
+  
+  .craft-modal-title {
+    font-size: 1.6rem;
+  }
+}
+
 
 
 /* ---- Caffeine Spectrum ---- */
