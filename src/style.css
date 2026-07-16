@@ -67,7 +67,8 @@ body {
   position: fixed;
   top: 2rem;
   left: 50%;
-  transform: translateX(-50%) translateY(20px);
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -106,6 +107,8 @@ body {
 
 /* Override transform for animation end state */
 .header-container.fade-slide-up {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
   animation: fadeSlideUpNav 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
 }
 
@@ -170,16 +173,23 @@ body {
 }
 
 .header-container.scrolled .nav-text {
-  max-width: 150px;
-  opacity: 1;
-  padding-right: 0.8rem;
-  /* Width animation is handled by the container now */
+  max-width: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0;
 }
 
 /* Hover expansion */
 .header-container.scrolled:hover .floating-nav,
 .header-container.scrolled:hover .top-right-cta {
   width: 180px;
+}
+
+.header-container.scrolled:hover .nav-text,
+.header-container.scrolled:hover .top-right-cta .nav-text {
+  max-width: 150px;
+  opacity: 1;
+  padding-right: 0.8rem;
 }
 
 .nav-link:hover {
@@ -268,9 +278,10 @@ body {
 }
 
 .header-container.scrolled .top-right-cta .nav-text {
-  max-width: 150px;
-  opacity: 1;
-  padding-right: 0.8rem;
+  max-width: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0;
 }
 
 .top-right-cta:hover {
