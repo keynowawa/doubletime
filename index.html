@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DoubleTime</title>
+    <link rel="icon" type="image/webp" href="/assets/dp.webp">
+  </head>
+  <body>
+    <!-- Floating Pill Navigation -->
+    <nav class="floating-nav fade-slide-up" style="animation-delay: 1.2s;">
+      <a href="https://ig.me/m/doubletime.ph" target="_blank" rel="noopener noreferrer" class="mobile-chat-btn" aria-label="Chat">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#story" class="nav-link">Story</a></li>
+        <li><a href="#flavors" class="nav-link">Flavors</a></li>
+        <li><a href="#contact" class="nav-link">Contact</a></li>
+      </ul>
+    </nav>
+
+    <!-- Top Right Let's Talk CTA -->
+    <a href="https://ig.me/m/doubletime.ph" target="_blank" rel="noopener noreferrer" class="top-right-cta fade-slide-up" style="animation-delay: 1.5s;">
+      Let's Talk
+    </a>
+
+    <main id="app">
+      <!-- Section 1: Hero -->
+      <section class="hero" id="hero">
+        <div class="hero-content">
+          <img src="/assets/18.webp" alt="DoubleTime Mascots" class="hero-mascot fade-slide-up" style="animation-delay: 0.3s;" />
+          <div class="fade-slide-up" style="animation-delay: 0.6s;">
+            <h1 class="hero-title display-font animated-title">doubletime</h1>
+          </div>
+          <p class="hero-motto ui-text fade-slide-up" style="animation-delay: 0.9s;">double the good days.</p>
+        </div>
+      </section>
+
+      <!-- Section 2: Editorial Story -->
+      <section class="story-section" id="story">
+        <div class="story-left">
+          <div class="story-img-wrapper">
+            <img src="/assets/half-bowl-matcha.webp" alt="Matcha Bowl" class="story-img" />
+          </div>
+        </div>
+        <div class="story-right">
+          <div class="story-text-block">
+            <h2 class="story-title display-font">Sourced direct from Uji, Kyoto.</h2>
+            <p class="story-body ui-text">Crafted for the pause. We bring authentic, ceremonial-grade matcha to your daily grind.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Wall of Flavors (Retained Grid) -->
+      <section class="flavors-section" id="flavors">
+        <h2 class="section-title display-font" style="margin-bottom: 0;">Our Flavors</h2>
+        <p class="ui-text section-desc" style="text-align: center; margin-bottom: 4rem; opacity: 0.8;">Discover our signature ceremonial-grade blends.</p>
+        
+        <div class="flavors-grid">
+          <div class="flavor-item" data-index="0">
+            <img src="/assets/cocoloco-front-view.webp" alt="Main Character" class="flavor-img" />
+            <p class="flavor-name display-font">Main Character</p>
+          </div>
+          <div class="flavor-item" data-index="1">
+            <img src="/assets/cocoloco-front-view.webp" alt="Coco Loco" class="flavor-img" />
+            <p class="flavor-name display-font">Coco Loco</p>
+          </div>
+          <div class="flavor-item" data-index="2">
+            <img src="/assets/cocoloco-front-view.webp" alt="Stay Salty" class="flavor-img" />
+            <p class="flavor-name display-font">Stay Salty</p>
+          </div>
+          <div class="flavor-item" data-index="3">
+            <img src="/assets/cocoloco-front-view.webp" alt="Berry Cute" class="flavor-img" />
+            <p class="flavor-name display-font">Berry Cute</p>
+          </div>
+          <div class="flavor-item" data-index="4">
+            <img src="/assets/cocoloco-front-view.webp" alt="Golden Hour" class="flavor-img" />
+            <p class="flavor-name display-font">Golden Hour</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- App-Style Modal Overlay -->
+    <div class="modal-overlay" id="flavor-modal" aria-hidden="true" style="display: none;">
+      <div class="modal-content">
+        <button class="modal-close" id="modal-close" aria-label="Close Modal">×</button>
+        <div class="modal-body">
+          <img src="/assets/cocoloco-front-view.webp" alt="Flavor Image" class="modal-img" id="modal-img" />
+          <div class="modal-info">
+            <h3 class="modal-title display-font" id="modal-title">Flavor Name</h3>
+            <p class="modal-desc ui-text" id="modal-desc">Description goes here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- News / Updates Slideshow -->
+    <section class="news-section">
+      <div class="news-header">
+        <h2 class="display-font">Updates & News</h2>
+        <p class="ui-text section-desc">Stay in the loop with what's brewing.</p>
+      </div>
+      <div class="news-slider" id="news-slider">
+        <div class="news-slides-container" id="news-slides-container">
+          <div class="news-slide">
+            <img src="/assets/cover2.webp" alt="News Update 1" class="news-img" />
+          </div>
+          <div class="news-slide slide-wood">
+            <img src="/assets/top-view-matcha-bowl.webp" alt="Matcha Bowl" class="news-img-overlay" />
+          </div>
+        </div>
+        
+        <!-- Apple-like Navigation -->
+        <button class="news-arrow prev" id="news-prev" aria-label="Previous News">←</button>
+        <button class="news-arrow next" id="news-next" aria-label="Next News">→</button>
+      </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section class="contact-section" id="contact">
+      <div class="contact-layout">
+        <img src="/assets/21.webp" alt="DoubleTime Mascot 21" class="contact-mascot mascot-left" />
+        <div class="contact-content">
+          <h2 class="display-font">Let's Connect</h2>
+          <p class="ui-text contact-desc">Got a question or just want to chat about matcha? Drop us a line or slide into our DMs. We'd love to hear from you.</p>
+          <div class="social-links">
+            <a href="mailto:doubletime.ph@gmail.com" class="social-icon" aria-label="Email">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+              <span>doubletime.ph@gmail.com</span>
+            </a>
+            <a href="https://ig.me/m/doubletime.ph" target="_blank" rel="noopener noreferrer" class="social-icon" aria-label="Instagram">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+              <span>doubletime.ph</span>
+            </a>
+            <a href="https://www.facebook.com/profile.php?id=61591600455781" target="_blank" rel="noopener noreferrer" class="social-icon" aria-label="Facebook">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg>
+              <span>doubletime</span>
+            </a>
+          </div>
+          <p class="ui-text sign-off" style="margin-top: 1rem; opacity: 0.6; font-style: italic;">Intentionally yours.</p>
+        </div>
+        <img src="/assets/22.webp" alt="DoubleTime Mascot 22" class="contact-mascot mascot-right" />
+      </div>
+    </section>
+
+    <!-- Standard Footer -->
+    <footer class="main-footer">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <img src="/assets/18.webp" alt="DoubleTime Logo" class="footer-logo-img" style="margin: 0;" />
+          <h2 class="display-font" style="font-size: 2.5rem; margin: 0.5rem 0 0.2rem 0; line-height: 1;">doubletime</h2>
+          <p class="ui-text footer-motto" style="margin: 0;">double the good days.</p>
+        </div>
+        <div class="footer-links">
+          <h4>Quick Links</h4>
+          <ul>
+            <li><a href="#hero">Home</a></li>
+            <li><a href="#story">Story</a></li>
+            <li><a href="#flavors">Flavors</a></li>
+            <li><a href="#contact">Contact</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p class="ui-text footer-copy">© 2026 DoubleTime. All rights reserved.</p>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
