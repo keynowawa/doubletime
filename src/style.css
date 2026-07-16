@@ -659,7 +659,7 @@ body {
     gap: 1rem;
     text-align: center;
     padding: 0;
-    margin-top: 4rem; /* Add white space between hero and bowl */
+    margin-top: 10rem; /* Increase white space between hero and bowl */
   }
   
   .story-left {
@@ -712,7 +712,9 @@ body {
   .flavor-item h3 { font-size: 1.6rem; }
   .flavor-item p { font-size: 0.95rem; }
   
-  .contact-section { padding: 4rem 5vw; }
+  .section-title { margin-bottom: 2rem; } /* Tighter headers on mobile */
+  .flavors-section, .news-section { padding: 3rem 5vw; }
+  .contact-section { padding: 3rem 5vw; }
   .contact-layout { flex-direction: column; gap: 2rem; text-align: center; }
   .contact-content { display: flex; flex-direction: column; align-items: center; }
   .social-links { flex-direction: column; align-items: center; gap: 1rem; justify-content: center; width: 100%; }
