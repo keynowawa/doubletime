@@ -853,18 +853,19 @@ body {
   }
 
   .header-container {
-    width: calc(90vw - 65px); /* Full width minus button and gap */
-    left: 5vw;
+    width: max-content; /* Allow it to shrink-wrap its contents naturally */
+    left: 50%;
     top: 2rem;
-    transform: translateY(0); /* Fixed: Don't shift down when classes are removed */
-    display: block;
+    transform: translateX(-50%) translateY(0); /* Center perfectly */
+    display: flex;
+    justify-content: center;
     gap: 0;
   }
 
   .header-container.scrolled {
     top: 2rem;
-    left: 5vw;
-    transform: translateY(0);
+    left: 50%;
+    transform: translateX(-50%) translateY(0);
     flex-direction: row;
   }
 
@@ -879,11 +880,16 @@ body {
 
   .header-container.scrolled .floating-nav {
     flex-direction: row;
-    padding: 0;
+    padding: 0 1.5rem; /* Ensure horizontal padding exists for pill look */
     border-radius: 50px;
     align-items: center;
-    width: 100%;
+    width: auto !important; /* Force override desktop scroll width */
     overflow: visible;
+  }
+
+  /* Prevent the desktop hover shrink bug on mobile */
+  .header-container.scrolled:hover .floating-nav {
+    width: auto !important;
   }
 
   .header-container.scrolled .nav-links {
@@ -909,14 +915,14 @@ body {
 
   .header-container.fade-slide-up {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateX(-50%) translateY(20px);
     animation: fadeSlideUpNavMobile 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
   }
 
   @keyframes fadeSlideUpNavMobile {
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateX(-50%) translateY(0);
     }
   }
   .nav-links {
