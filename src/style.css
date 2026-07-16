@@ -604,28 +604,42 @@ body {
 }
 
 @media (max-width: 768px) {
-  /* Mobile Chat Button inside Nav */
+  /* Mobile Chat Button separated */
   .mobile-chat-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 55px;
+    height: 55px;
     border-radius: 50%;
     background: white;
     color: var(--bg-color);
-    position: absolute;
-    right: 1rem;
-    z-index: 100;
+    position: fixed;
+    top: 2rem;
+    right: 5vw;
+    z-index: 1000;
   }
 
   .floating-nav {
-    width: 90%;
-    padding: 1rem;
+    width: calc(90vw - 65px); /* Full width minus button and gap */
+    height: 55px;
+    padding: 0;
     display: flex;
     justify-content: center;
     align-items: center;
-    position: relative; /* Context for absolute chat btn */
+    left: 5vw;
+    transform: translateY(20px);
+  }
+
+  .floating-nav.fade-slide-up {
+    animation: fadeSlideUpNavMobile 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+  }
+
+  @keyframes fadeSlideUpNavMobile {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   .nav-links {
     gap: 1rem;
