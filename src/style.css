@@ -1365,10 +1365,8 @@ body {
 }
 
 .craft-subhead {
-  font-size: 1rem;
-  opacity: 0.45;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 1.15rem;
+  color: rgba(255, 255, 255, 0.65);
 }
 
 /* ---- Infographic Center Layout ---- */
@@ -1783,18 +1781,35 @@ body {
   background: rgba(0,0,0,0.04);
 }
 
+
 /* Milk modal: side-by-side images */
-.milk-modal-images {
+.craft-modal-image-area {
+  height: 220px;
+  width: 100%;
   display: flex;
-  gap: 1.5rem;
   justify-content: center;
-  align-items: flex-end;
+  align-items: center;
 }
 
-.milk-modal-images .modal-img {
-  max-width: 160px;
-  max-height: 200px;
+.craft-modal-image-area .modal-img {
+  max-height: 100%;
+  width: auto;
+  object-fit: contain;
 }
+
+.milk-modal-images {
+  gap: 1.5rem;
+}
+
+/* Ensure modal boxes themselves are the same height so the X button aligns perfectly */
+#matcha-modal .modal-content,
+#milk-modal .modal-content {
+  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
 
 /* Make glass layers clickable */
 .glass-layer-hoverable {
@@ -2112,9 +2127,12 @@ body {
   .modal-desc {
     font-size: 0.95rem;
   }
-  .milk-modal-images .modal-img {
-    max-width: 120px;
-    max-height: 150px;
+  .craft-modal-image-area {
+    height: 160px;
+  }
+  #matcha-modal .modal-content,
+  #milk-modal .modal-content {
+    min-height: 480px;
   }
 
   .caf-spectrum { padding: 0; }
