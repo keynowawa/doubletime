@@ -186,49 +186,8 @@
         </div>
 
         <div class="craft-infographic">
-
-          <!-- Left: Matcha Info -->
-          <div class="craft-info-col craft-info-left">
-            <div class="craft-info-item">
-              <div class="craft-info-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
-                </svg>
-              </div>
-              <div>
-                <h4 class="craft-info-title display-font">Ceremonial Grade</h4>
-                <p class="craft-info-desc ui-text">First-harvest shade-grown leaves, stone-ground to a silky powder.</p>
-              </div>
-            </div>
-            <div class="craft-info-item">
-              <div class="craft-info-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/>
-                </svg>
-              </div>
-              <div>
-                <h4 class="craft-info-title display-font">Uji, Japan</h4>
-                <p class="craft-info-desc ui-text">The spiritual home of Japanese matcha, with over 800 years of tradition.</p>
-              </div>
-            </div>
-          </div>
-
           <!-- Center: CSS Glass -->
           <div class="craft-glass-wrapper">
-            <!-- Milk reveal: LEFT of glass (hovering milk hides matcha info on left) -->
-            <div class="layer-reveal layer-reveal-milk">
-              <div class="milk-reveal-pair">
-                <div class="milk-reveal-card">
-                  <img src="/assets/oatside.png" alt="Oatside" class="layer-reveal-img" />
-                  <p class="layer-reveal-label ui-text">Oatside</p>
-                </div>
-                <div class="milk-reveal-card">
-                  <img src="/assets/sogood.png" alt="So Good Unsweetened" class="layer-reveal-img" />
-                  <p class="layer-reveal-label ui-text">So Good</p>
-                </div>
-              </div>
-            </div>
-
             <div class="craft-glass-scene" id="craft-glass-scene">
               <div class="glass-straw"></div>
               <div class="css-glass">
@@ -247,40 +206,7 @@
               </div>
               <div class="glass-base"></div>
             </div>
-
             <div class="glass-glow"></div>
-
-            <!-- Matcha reveal: RIGHT of glass (hovering matcha hides milk info on right) -->
-            <div class="layer-reveal layer-reveal-matcha">
-              <img src="/assets/matchapowder.png" alt="Ceremonial Grade Matcha" class="layer-reveal-img" />
-              <p class="layer-reveal-label ui-text">Ceremonial Grade Matcha</p>
-            </div>
-          </div>
-
-          <!-- Right: Milk Info -->
-          <div class="craft-info-col craft-info-right">
-            <div class="craft-info-item craft-item-right">
-              <div class="craft-info-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-                </svg>
-              </div>
-              <div>
-                <h4 class="craft-info-title display-font">Oatside</h4>
-                <p class="craft-info-desc ui-text">Our primary oat milk. Rich, creamy, and naturally sweet — perfect foam every time.</p>
-              </div>
-            </div>
-            <div class="craft-info-item craft-item-right">
-              <div class="craft-info-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>
-                </svg>
-              </div>
-              <div>
-                <h4 class="craft-info-title display-font">So Good Unsweetened</h4>
-                <p class="craft-info-desc ui-text">Our zero-sugar alternative. Lets the natural umami of the matcha fully shine.</p>
-              </div>
-            </div>
           </div>
         </div>
       </section>
@@ -379,5 +305,50 @@
     </footer>
 
     <script type="module" src="/src/main.ts"></script>
+
+    <!-- Matcha Glass Modal -->
+    <div class="modal-overlay" id="matcha-modal" aria-hidden="true" style="display: none;">
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close Modal">×</button>
+        <div class="modal-body">
+          <img src="/assets/matchapowder.png" alt="Ceremonial Grade Matcha" class="modal-img" />
+          <div class="modal-info">
+            <h3 class="modal-title display-font">Ceremonial Grade Matcha</h3>
+            <p class="modal-desc ui-text" style="margin-bottom: 2rem;">First-harvest shade-grown leaves, stone-ground to a silky powder.</p>
+            <div style="text-align: left; background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 12px;">
+              <h4 class="craft-info-title display-font" style="margin-bottom: 0.5rem; color: white;">Sourced from Uji, Japan</h4>
+              <p class="ui-text" style="opacity: 0.8; font-size: 0.95rem;">The spiritual home of Japanese matcha, with over 800 years of tradition. We guarantee deep umami and zero bitterness.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Milk Glass Modal -->
+    <div class="modal-overlay" id="milk-modal" aria-hidden="true" style="display: none;">
+      <div class="modal-content">
+        <button class="modal-close" aria-label="Close Modal">×</button>
+        <div class="modal-body">
+          <div style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 1rem;">
+            <img src="/assets/oatside.png" alt="Oatside" class="modal-img" style="max-height: 200px;" />
+            <img src="/assets/sogood.png" alt="So Good" class="modal-img" style="max-height: 200px;" />
+          </div>
+          <div class="modal-info">
+            <h3 class="modal-title display-font">Premium Milks</h3>
+            <div style="text-align: left; display: flex; flex-direction: column; gap: 1rem;">
+              <div style="background: rgba(0,0,0,0.05); padding: 1.5rem; border-radius: 12px;">
+                <h4 class="craft-info-title display-font" style="margin-bottom: 0.5rem;">Oatside</h4>
+                <p class="ui-text" style="opacity: 0.8; font-size: 0.95rem; color: #444;">Our primary oat milk. Rich, creamy, and naturally sweet — perfect foam every time.</p>
+              </div>
+              <div style="background: rgba(0,0,0,0.05); padding: 1.5rem; border-radius: 12px;">
+                <h4 class="craft-info-title display-font" style="margin-bottom: 0.5rem;">So Good Unsweetened</h4>
+                <p class="ui-text" style="opacity: 0.8; font-size: 0.95rem; color: #444;">Our zero-sugar alternative. Lets the natural umami of the matcha fully shine.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </body>
 </html>

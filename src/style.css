@@ -394,12 +394,37 @@ body {
   -webkit-backdrop-filter: blur(10px);
   z-index: 2000;
   display: flex;
-  align-items: center;
+  align-items: center; /* Will be overridden on mobile */
   justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto; /* Enable scrolling if content overflows */
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.25s ease, visibility 0.25s ease;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
   will-change: opacity, visibility;
+}
+
+/* Modals for Matcha and Milk - overrides overlay background */
+#matcha-modal {
+  background: rgba(45, 90, 43, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+#milk-modal {
+  background: rgba(245, 240, 230, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Themed close buttons */
+#milk-modal .modal-close {
+  color: #333;
+}
+#milk-modal .modal-title,
+#milk-modal .modal-desc,
+#milk-modal .craft-info-title {
+  color: #222;
 }
 
 .modal-overlay.active {
@@ -1353,77 +1378,13 @@ body {
   text-transform: uppercase;
 }
 
-/* ---- Infographic 3-col layout ---- */
+/* ---- Infographic Center Layout ---- */
 .craft-infographic {
-  display: grid;
-  grid-template-columns: 1fr 240px 1fr;
-  gap: 2rem;
+  display: flex;
+  justify-content: center;
   align-items: center;
   margin-bottom: 5rem;
-}
-
-/* ---- Info Columns ---- */
-.craft-info-col {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-  transition: opacity 0.35s ease;
-}
-
-.craft-info-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 1.2rem;
-  opacity: 0;
-  transform: translateX(-16px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
-}
-
-.craft-info-item.visible {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.craft-info-right .craft-info-item {
-  transform: translateX(16px);
-  flex-direction: row-reverse;
-  text-align: right;
-}
-
-.craft-info-right .craft-info-item.visible {
-  transform: translateX(0);
-}
-
-.craft-info-icon {
-  flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 12px;
-  color: rgba(255,255,255,0.7);
-  transition: background 0.3s ease, color 0.3s ease;
-}
-
-.craft-info-item:hover .craft-info-icon {
-  background: rgba(255,255,255,0.1);
-  color: white;
-}
-
-.craft-info-title {
-  font-size: 1.25rem;
-  letter-spacing: -0.01em;
-  margin-bottom: 0.3rem;
-  line-height: 1.2;
-}
-
-.craft-info-desc {
-  font-size: 0.95rem;
-  opacity: 0.6;
-  line-height: 1.6;
+  /* Removed the 3 column grid */
 }
 
 /* ---- CSS Glass Wrapper ---- */
@@ -1443,23 +1404,18 @@ body {
   flex-direction: column;
   align-items: center;
   animation: glassFloat 5s ease-in-out infinite;
-  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+  transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1),
               filter 0.4s ease;
-  cursor: default;
+  cursor: pointer;
+  z-index: 10;
 }
 
-.craft-glass-scene:hover {
-  transform: translateY(-8px);
-  filter: drop-shadow(0 24px 40px rgba(94, 175, 90, 0.25));
-}
-
-@keyframes glassFloat {
-  0%, 100% { transform: translateY(0); }
-  50%       { transform: translateY(-8px); }
-}
-
-.craft-glass-scene:hover {
-  animation-play-state: paused;
+/* New Zoom Class applied via JS */
+.glass-scene-zoom {
+  animation: none !important;
+  transform: scale(2.2) translateY(20px) !important;
+  filter: drop-shadow(0 40px 60px rgba(0,0,0,0.5)) !important;
+  z-index: 2100; /* above overlay */
 }
 
 /* ---- The Glass Body ---- */
@@ -1800,65 +1756,7 @@ body {
   .craft-infographic { gap: 2.5rem; }
 }
 
-/* ---- Glass Layer Hover Reveals ---- */
-.layer-reveal {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.4s ease, transform 0.45s cubic-bezier(0.25,1,0.5,1);
-  z-index: 30;
-  text-align: center;
-}
-
-/* Matcha: appears to the RIGHT, slides in from right */
-.layer-reveal-matcha {
-  left: calc(100% + 28px);
-  transform: translateY(-50%) translateX(12px);
-}
-
-/* Milk: appears to the LEFT, slides in from left */
-.layer-reveal-milk {
-  right: calc(100% + 28px);
-  transform: translateY(-50%) translateX(-12px);
-}
-
-.layer-reveal-matcha.active {
-  opacity: 1;
-  transform: translateY(-50%) translateX(0);
-  pointer-events: auto;
-}
-
-.layer-reveal-milk.active {
-  opacity: 1;
-  transform: translateY(-50%) translateX(0);
-  pointer-events: auto;
-}
-
-.layer-reveal-img {
-  width: 140px;
-  height: 180px;
-  object-fit: contain;
-  filter: drop-shadow(0 12px 32px rgba(0,0,0,0.45));
-  display: block;
-  margin: 0 auto 0.6rem;
-}
-
-.layer-reveal-label {
-  font-size: 0.7rem;
-  opacity: 0.55;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.milk-reveal-pair {
-  display: flex;
-  gap: 1.2rem;
-  align-items: flex-end;
-}
-
-.milk-reveal-card { text-align: center; }
+/* Removed hover reveals CSS completely */
 
 /* Make layers hoverable */
 .glass-layer-hoverable {
@@ -1871,18 +1769,7 @@ body {
   filter: brightness(1.15);
 }
 
-/* Tilt classes added by JS on hover */
-.glass-scene-tilt-right {
-  animation: none !important;
-  transform: translateY(-6px) rotate(4deg) !important;
-  filter: drop-shadow(0 24px 40px rgba(94, 175, 90, 0.3)) !important;
-}
-
-.glass-scene-tilt-left {
-  animation: none !important;
-  transform: translateY(-6px) rotate(-4deg) !important;
-  filter: drop-shadow(0 24px 40px rgba(240, 228, 205, 0.2)) !important;
-}
+/* Removed Tilt classes added by JS on hover */
 
 
 /* ---- Caffeine Spectrum ---- */
@@ -2188,6 +2075,14 @@ body {
 }
 
 @media (max-width: 768px) {
+  .modal-overlay {
+    align-items: flex-start;
+  }
+  .modal-content {
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+  }
+
   .caf-spectrum { padding: 0; }
   .caf-intro { font-size: 1rem; }
   

@@ -87,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 2. Modal Interaction
   const modal = document.getElementById('flavor-modal');
-  const modalCloseBtn = document.getElementById('modal-close');
   const modalImg = document.getElementById('modal-img') as HTMLImageElement;
   const modalTitle = document.getElementById('modal-title');
   const modalDesc = document.getElementById('modal-desc');
@@ -128,17 +127,41 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.style.overflow = 'hidden';
   };
 
-  const closeModal = () => {
-    if (!modal) return;
-    modal.classList.remove('active');
+  const closeModal = (modalEl: HTMLElement | null = null) => {
+    const activeModals = modalEl ? [modalEl] : Array.from(document.querySelectorAll('.modal-overlay.active'));
+    activeModals.forEach(m => {
+      m.classList.remove('active');
+      m.setAttribute('aria-hidden', 'true');
+      
+      setTimeout(() => {
+        if (!m.classList.contains('active')) {
+          (m as HTMLElement).style.display = 'none';
+        }
+      }, 300); // Wait for transition
+    });
+    
     document.body.style.overflow = '';
-    // Wait for the opacity transition to finish (0.25s matching CSS) before hiding from DOM
-    setTimeout(() => {
-      if (!modal.classList.contains('active')) {
-        modal.style.display = 'none';
-      }
-    }, 250);
+    
+    // Unzoom the glass if it was zoomed
+    const glassScene = document.getElementById('craft-glass-scene');
+    if (glassScene) {
+      glassScene.classList.remove('glass-scene-zoom');
+    }
   };
+
+  // Attach close event to all modal close buttons and overlays
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModal(overlay as HTMLElement);
+    });
+  });
+
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const modal = (e.target as HTMLElement).closest('.modal-overlay');
+      if (modal) closeModal(modal as HTMLElement);
+    });
+  });
 
   flavorItems.forEach(item => {
     item.addEventListener('click', () => {
@@ -149,16 +172,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModal);
-  if (modal) {
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal();
-    });
-  }
-  
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && modal && modal.classList.contains('active')) {
-      closeModal();
+    if (e.key === 'Escape') {
+      const activeModals = document.querySelectorAll('.modal-overlay.active');
+      activeModals.forEach(m => closeModal(m as HTMLElement));
     }
   });
 
@@ -239,58 +256,32 @@ document.addEventListener('DOMContentLoaded', () => {
   );
   infoItems.forEach(item => fadeObserver.observe(item));
 
-  // 6. Glass Layer Hover Reveals — show image, dim opposite info column, tilt glass
+  // 6. Glass Layer Click to Zoom Modals
   const matchaLayer  = document.querySelector('.glass-layer-hoverable[data-layer="matcha"]');
   const milkLayer    = document.querySelector('.glass-layer-hoverable[data-layer="milk"]');
-  const revealMatcha = document.querySelector('.layer-reveal-matcha') as HTMLElement | null;
-  const revealMilk   = document.querySelector('.layer-reveal-milk') as HTMLElement | null;
-  const infoLeft     = document.querySelector('.craft-info-left') as HTMLElement | null;
-  const infoRight    = document.querySelector('.craft-info-right') as HTMLElement | null;
   const glassScene   = document.getElementById('craft-glass-scene') as HTMLElement | null;
+  const matchaModal  = document.getElementById('matcha-modal');
+  const milkModal    = document.getElementById('milk-modal');
 
-  const toggleReveal = (reveal: HTMLElement | null, show: boolean) => {
-    if (!reveal) return;
-    if (show) reveal.classList.add('active');
-    else reveal.classList.remove('active');
+  const openGlassModal = (targetModal: HTMLElement | null) => {
+    if (!glassScene || !targetModal) return;
+    
+    // Zoom in the glass
+    glassScene.classList.add('glass-scene-zoom');
+    
+    // Open the modal after a short delay so the zoom effect is visible
+    setTimeout(() => {
+      targetModal.style.display = 'flex';
+      // Force reflow
+      void targetModal.offsetWidth;
+      targetModal.classList.add('active');
+      targetModal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }, 150);
   };
 
-  const dimCol = (col: HTMLElement | null, dim: boolean) => {
-    if (!col) return;
-    col.style.opacity = dim ? '0' : '';
-    col.style.pointerEvents = dim ? 'none' : '';
-    col.style.transition = 'opacity 0.35s ease';
-  };
-
-  const tiltGlass = (dir: 'right' | 'left' | null) => {
-    if (!glassScene) return;
-    glassScene.classList.remove('glass-scene-tilt-right', 'glass-scene-tilt-left');
-    if (dir === 'right') glassScene.classList.add('glass-scene-tilt-right');
-    if (dir === 'left')  glassScene.classList.add('glass-scene-tilt-left');
-  };
-
-  // Matcha hover → reveal on RIGHT, hide RIGHT milk info, tilt right
-  matchaLayer?.addEventListener('mouseenter', () => {
-    toggleReveal(revealMatcha, true);
-    dimCol(infoRight, true);
-    tiltGlass('right');
-  });
-  matchaLayer?.addEventListener('mouseleave', () => {
-    toggleReveal(revealMatcha, false);
-    dimCol(infoRight, false);
-    tiltGlass(null);
-  });
-
-  // Milk hover → reveal on LEFT, hide LEFT matcha info, tilt left
-  milkLayer?.addEventListener('mouseenter', () => {
-    toggleReveal(revealMilk, true);
-    dimCol(infoLeft, true);
-    tiltGlass('left');
-  });
-  milkLayer?.addEventListener('mouseleave', () => {
-    toggleReveal(revealMilk, false);
-    dimCol(infoLeft, false);
-    tiltGlass(null);
-  });
+  matchaLayer?.addEventListener('click', () => openGlassModal(matchaModal));
+  milkLayer?.addEventListener('click', () => openGlassModal(milkModal));
 
   // 7. Caffeine Spectrum — animate fill + dot tooltips
   const spectrumFill = document.querySelector('.caf-spectrum-fill') as HTMLElement | null;
