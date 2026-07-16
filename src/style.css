@@ -2089,33 +2089,32 @@ body {
 }
 
 /* ---- Responsive Adjustments ---- */
-@media (max-width: 1024px) {
-  .craft-infographic {
-    grid-template-columns: 1fr;
-    gap: 4rem;
-    justify-items: center;
-  }
-  
-  .craft-info-right .craft-info-item {
-    flex-direction: row;
-    text-align: left;
-  }
 
-  .craft-info-right .craft-info-item .craft-info-icon {
-    order: 0;
-  }
-
-  .layer-reveal { display: none; }
-  .glass-layer-hoverable { pointer-events: none; }
-}
 
 @media (max-width: 768px) {
   .modal-overlay {
     align-items: flex-start;
+    padding: 1rem;
   }
   .modal-content {
     margin-top: 2rem;
     margin-bottom: 2rem;
+    padding: 2rem 1.5rem;
+  }
+  .modal-close {
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 2.2rem;
+  }
+  .modal-title {
+    font-size: 2rem;
+  }
+  .modal-desc {
+    font-size: 0.95rem;
+  }
+  .milk-modal-images .modal-img {
+    max-width: 120px;
+    max-height: 150px;
   }
 
   .caf-spectrum { padding: 0; }
