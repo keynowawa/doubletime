@@ -72,9 +72,12 @@ body {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: 50px;
-  padding: 1rem 2.5rem;
+  padding: 0.6rem 0.6rem 0.6rem 2.5rem; /* Asymmetrical padding to snugly fit the button */
   z-index: 1000;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
 }
 
 /* Override transform for animation end state specifically for nav */
@@ -161,11 +164,8 @@ body {
   100% { transform: scale(1) translateY(0); filter: drop-shadow(0 0 0px rgba(255,255,255,0)); }
 }
 
-/* Top Right Let's Talk CTA */
+/* Top Right Let's Talk CTA (Now inside Nav) */
 .top-right-cta {
-  position: fixed;
-  top: 2rem;
-  right: 2rem;
   background: white;
   color: var(--bg-color);
   padding: 0.8rem 2rem;
@@ -175,7 +175,6 @@ body {
   font-size: 0.95rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  z-index: 1000;
   box-shadow: 0 10px 30px rgba(0,0,0,0.2);
   transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s;
 }
