@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Navbar Scroll Animation
   const nav = document.querySelector('.header-container');
   window.addEventListener('scroll', () => {
+    // Crucial: remove load animation class so it doesn't fight scrolled state
+    nav?.classList.remove('fade-slide-up');
+    
     if (window.scrollY > 50) {
       nav?.classList.add('scrolled');
     } else {
