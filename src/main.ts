@@ -208,18 +208,35 @@ document.addEventListener('DOMContentLoaded', () => {
       // Add active class to clicked tab
       tab.classList.add('active');
       
-      // Hide all bento grids
-      document.querySelectorAll('.bento-grid').forEach(grid => {
-        grid.classList.remove('active');
+      // Hide all decks
+      document.querySelectorAll('.craft-deck').forEach(deck => {
+        deck.classList.remove('active');
       });
       
-      // Show target bento grid
+      // Show target deck
       const targetId = tab.getAttribute('data-target');
       if (targetId) {
-        const targetGrid = document.getElementById(targetId);
-        if (targetGrid) {
-          targetGrid.classList.add('active');
+        const targetDeck = document.getElementById(targetId);
+        if (targetDeck) {
+          targetDeck.classList.add('active');
         }
+      }
+    });
+  });
+
+  // 5. Mobile Touch Support for Hover Slabs
+  const craftSlabs = document.querySelectorAll('.craft-slab');
+  craftSlabs.forEach(slab => {
+    slab.addEventListener('click', () => {
+      // If we are on mobile, we use click to act as hover
+      if (window.innerWidth <= 768) {
+        // Remove touch-active from all slabs in the SAME deck
+        const parentDeck = slab.closest('.craft-deck');
+        if (parentDeck) {
+          parentDeck.querySelectorAll('.craft-slab').forEach(s => s.classList.remove('touch-active'));
+        }
+        // Add to this one
+        slab.classList.add('touch-active');
       }
     });
   });
