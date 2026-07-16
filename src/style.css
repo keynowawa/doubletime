@@ -862,9 +862,9 @@ body {
   }
 
   .floating-nav {
-    width: 100%;
+    width: auto !important;
     height: 55px;
-    padding: 0;
+    padding: 0 1.5rem !important;
     justify-content: center;
     position: static;
     transform: none;
@@ -940,6 +940,7 @@ body {
   
   .top-right-cta svg {
     margin: 0 !important;
+    display: block !important;
   }
 
   /* Adjust Hero to be full screen on mobile so the bowl is hidden on load */
