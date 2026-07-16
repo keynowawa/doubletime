@@ -88,9 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     modal.style.display = 'flex';
     // Small delay to allow display: flex to render before adding opacity transition
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       modal.classList.add('active');
-    });
+    }, 10);
     document.body.style.overflow = 'hidden';
   };
 
@@ -98,12 +98,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!modal) return;
     modal.classList.remove('active');
     document.body.style.overflow = '';
-    // Wait for the opacity transition to finish (0.4s matching CSS) before hiding from DOM
+    // Wait for the opacity transition to finish (0.25s matching CSS) before hiding from DOM
     setTimeout(() => {
       if (!modal.classList.contains('active')) {
         modal.style.display = 'none';
       }
-    }, 400);
+    }, 250);
   };
 
   flavorItems.forEach(item => {
