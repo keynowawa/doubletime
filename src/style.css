@@ -6,6 +6,10 @@
   font-style: normal;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 :root {
   --bg-color: #1e3b6a;
   --text-color: #ffffff;
@@ -578,10 +582,8 @@ body {
 
 /* Scroll Indicator */
 .scroll-indicator {
-  position: absolute;
-  bottom: 3rem;
-  left: 50%;
-  transform: translateX(-50%);
+  position: relative;
+  margin-top: 4rem;
   display: flex;
   flex-direction: column;
   align-items: center;
