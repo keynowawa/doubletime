@@ -9,6 +9,8 @@ export type Product = {
   image: string;
   modifierIds: string[];
   soldOut: boolean;
+  trackStock?: boolean;
+  stockQuantity?: number;
   archived: boolean;
   createdAt: string;
 };
@@ -26,6 +28,7 @@ export type PriceList = {
   id: string;
   name: string;
   prices: Record<string, number>;
+  productIds?: string[];
   archived: boolean;
   createdAt: string;
 };
@@ -68,6 +71,10 @@ export type Order = {
   cashReceived?: number;
   createdBy?: string;
   createdByName?: string;
+  deviceId?: string;
+  deviceName?: string;
+  localReceiptCode?: string;
+  syncStatus?: 'pending';
 };
 
 export type Settings = {
@@ -91,4 +98,18 @@ export type PosProfile = {
   role: UserRole;
   active: boolean;
   createdAt: string;
+};
+
+export type DeviceIdentity = {
+  id: 'device';
+  deviceId: string;
+  name: string;
+  prefix: string;
+  nextLocalOrderNumber: number;
+};
+
+export type OfflineAccess = {
+  id: 'offline-access';
+  profile: PosProfile;
+  verifiedAt: string;
 };

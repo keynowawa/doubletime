@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { AuthChangeEvent, RealtimeChannel, Session, SupabaseClient } from '@supabase/supabase-js';
-import type { PosProfile } from './pos-types';
+import type { PosProfile, UserRole } from './pos-types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() || '';
 const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || '';
@@ -58,7 +58,8 @@ export async function signOut() {
 export async function getCurrentProfile(): Promise<PosProfile | null> {
   if (!supabase) return null;
   const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) return null;
+  if (userError) throw userError;
+  if (!userData.user) return null;
   const { data, error } = await supabase
     .from('profiles')
     .select('id, business_id, email, display_name, role, active, created_at')
@@ -93,17 +94,30 @@ export async function getBusinessProfiles(): Promise<PosProfile[]> {
   } as PosProfile));
 }
 
-export async function createStaffAccount(email: string, displayName: string, temporaryPassword: string) {
+export async function createTeamAccount(email: string, displayName: string, temporaryPassword: string, role: UserRole) {
   const { data, error } = await client().functions.invoke('invite-staff', {
     body: {
+      action: 'create',
       email: email.trim().toLowerCase(),
       displayName: displayName.trim(),
       temporaryPassword,
+      role,
     },
   });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
+  if (data?.role !== role) throw new Error('account role service needs updating in supabase');
   return data as { id?: string; email: string };
+}
+
+export async function updateTeamMemberRole(userId: string, role: UserRole) {
+  const { data, error } = await client().functions.invoke('invite-staff', {
+    body: { action: 'update-role', userId, role },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  if (data?.role !== role) throw new Error('account role service needs updating in supabase');
+  return data as { id: string; role: UserRole };
 }
 
 export function watchAuth(callback: (event: AuthChangeEvent, session: Session | null) => void) {

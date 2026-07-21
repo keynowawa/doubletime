@@ -1,9 +1,9 @@
 import './pos.css';
 import { strToU8, zipSync } from 'fflate';
 import { Archive, Banknote, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
-import { changePassword, createStaffAccount, getBusinessProfiles, getCurrentProfile, getSession, isCloudConfigured, sendSignInLink, signInWithPassword, signOut, watchAuth, watchBusinessChanges } from './pos-auth';
-import { changeOrderStatus as persistOrderStatus, connectCloud, createOrder, exportBackup, flushOutbox, getModifiers, getOrders, getPriceLists, getProducts, getSettings, importBackup, initializeStore, save, syncFromCloud, updateManagerPin, usingCloud } from './pos-store';
-import type { CartLine, Discount, Modifier, Order, OrderStatus, PaymentMethod, PosProfile, PriceList, Product, Settings } from './pos-types';
+import { changePassword, createTeamAccount, getBusinessProfiles, getCurrentProfile, getSession, isCloudConfigured, sendSignInLink, signInWithPassword, signOut, updateTeamMemberRole, watchAuth, watchBusinessChanges } from './pos-auth';
+import { OFFLINE_ACCESS_DAYS, adjustProductStock, cacheOfflineAccess, changeOrderStatus as persistOrderStatus, clearOfflineAccess, connectCloud, createOrder, exportBackup, getDeviceIdentity, getModifiers, getOfflineAccess, getOrders, getPendingSyncState, getPriceLists, getProducts, getSettings, importBackup, initializeStore, save, syncFromCloud, updateDeviceIdentity, updateManagerPin, usingCloud } from './pos-store';
+import type { CartLine, DeviceIdentity, Discount, Modifier, Order, OrderStatus, PaymentMethod, PosProfile, PriceList, Product, Settings, UserRole } from './pos-types';
 
 type View = 'sell' | 'dashboard' | 'orders' | 'catalog' | 'settings';
 type Modal = '' | 'modifiers' | 'discount' | 'payment' | 'receipt' | 'product' | 'modifier' | 'order' | 'price-list' | 'price-picker' | 'account';
@@ -33,7 +33,7 @@ let paymentMethod: PaymentMethod = 'cash';
 let cashReceived = '';
 let latestOrder: Order | null = null;
 let dashboardRange = 'today';
-let catalogTab: 'products' | 'addons' | 'prices' = 'products';
+let catalogTab: 'products' | 'addons' | 'prices' | 'archive' = 'products';
 let orderSearch = '';
 let orderRange = 'all';
 let orderStatus = 'all';
@@ -47,6 +47,11 @@ let signInSentTo = '';
 let stopBusinessWatcher: (() => void) | null = null;
 let authWatcherStarted = false;
 let localPreviewEnabled = sessionStorage.getItem('doubletime-local-preview') === 'true';
+let deviceIdentity: DeviceIdentity;
+let pendingSyncCount = 0;
+let pendingOrderIds = new Set<string>();
+let syncPhase: 'online' | 'offline' | 'syncing' = navigator.onLine ? 'online' : 'offline';
+let sellCategory = '';
 
 const paymentMethods: { id: PaymentMethod; label: string; note: string; icon: string }[] = [
   { id: 'cash', label: 'cash', note: 'calculate change', icon: 'banknote' },
@@ -60,6 +65,9 @@ const paymentLabel = (method: PaymentMethod) => paymentMethods.find((item) => it
 const isOwner = () => !isCloudConfigured || currentProfile?.role === 'owner';
 const canOpenView = (requested: View) => isOwner() || requested === 'sell' || requested === 'orders';
 const profileInitials = () => (currentProfile?.displayName || currentProfile?.email || 'local').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toLowerCase();
+const isPendingOrder = (order: Order) => pendingOrderIds.has(order.id);
+const orderReference = (order: Order) => isPendingOrder(order) && order.localReceiptCode ? order.localReceiptCode : `#${String(order.number).padStart(3, '0')}`;
+const nextOrderReference = () => !navigator.onLine && deviceIdentity ? `${deviceIdentity.prefix}-${String(deviceIdentity.nextLocalOrderNumber).padStart(3, '0')}` : `#${String(settings.nextOrderNumber).padStart(3, '0')}`;
 
 const uid = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const clone = <T>(value: T): T => typeof globalThis.structuredClone === 'function'
@@ -67,8 +75,14 @@ const clone = <T>(value: T): T => typeof globalThis.structuredClone === 'functio
   : JSON.parse(JSON.stringify(value)) as T;
 const esc = (value: unknown) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]!);
 const activePriceList = () => priceLists.find((item) => item.id === settings.activePriceListId && !item.archived) || priceLists.find((item) => !item.archived);
+const priceListIncludes = (list: PriceList | undefined, product: Product) => !list?.productIds || list.productIds.includes(product.id);
+const priceListProductCount = (list: PriceList) => products.filter((product) => !product.archived && priceListIncludes(list, product)).length;
 const currentPrice = (product: Product) => activePriceList()?.prices[product.id] ?? product.price;
-const lineUnitPrice = (line: CartLine) => line.unitPrice ?? currentPrice(line.product) + line.modifiers.reduce((sum, item) => sum + item.price, 0);
+const productUnavailable = (product: Product) => product.soldOut || Boolean(product.trackStock && (product.stockQuantity || 0) <= 0);
+const menuTaxMultiplier = () => settings.taxEnabled && settings.taxInclusive ? 1 + Math.max(0, settings.taxRate) / 100 : 1;
+const menuAmount = (amount: number) => amount * menuTaxMultiplier();
+const menuUnitPrice = (product: Product, selected: Modifier[]) => menuAmount(currentPrice(product) + selected.reduce((sum, item) => sum + item.price, 0));
+const lineUnitPrice = (line: CartLine) => line.unitPrice ?? menuUnitPrice(line.product, line.modifiers);
 const subtotal = () => cart.reduce((sum, line) => sum + lineUnitPrice(line) * line.quantity, 0);
 const discountAmount = () => {
   if (!discount) return 0;
@@ -89,6 +103,13 @@ function brandMark() {
   return `<div class="brand-mark"><img src="/assets/DT-LOGO-001.png" alt="doubletime"></div>`;
 }
 
+function renderSyncBadge() {
+  const state = !navigator.onLine ? 'offline' : syncPhase;
+  const label = state === 'syncing' ? 'syncing' : state === 'offline' ? 'offline' : 'online';
+  const detail = pendingSyncCount ? `${pendingSyncCount} pending` : '';
+  return `<div class="global-sync-badge ${state}" role="status" aria-label="${label}${detail ? `, ${detail}` : ''}"><i data-lucide="${state === 'offline' ? 'wifi-off' : 'cloud'}"></i><span>${label}</span>${detail ? `<small>${detail}</small>` : ''}</div>`;
+}
+
 function hydrateIcons() {
   createIcons({ icons: { Archive, Banknote, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings: SettingsIcon, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X }, attrs: { 'stroke-width': '1.8', 'aria-hidden': 'true' } });
 }
@@ -104,7 +125,7 @@ function render() {
       <button class="account-nav" data-action="open-account" aria-label="account"><span>${profileInitials()}</span><small>${currentProfile?.role || 'local'}</small></button>
     </aside>
     <section class="view-stage">${renderView()}</section>
-  </div>${renderModal()}<div class="toast" id="toast" role="status"></div>`;
+  </div>${renderSyncBadge()}${renderModal()}<div class="toast" id="toast" role="status"></div>`;
   hydrateIcons();
 }
 
@@ -117,7 +138,11 @@ function renderView() {
 }
 
 function renderSell() {
-  const availableProducts = products.filter((product) => !product.archived);
+  const list = activePriceList();
+  const availableProducts = products.filter((product) => !product.archived && priceListIncludes(list, product));
+  const categories = [...new Set(availableProducts.map((product) => product.category.trim().toLowerCase() || 'other'))].sort();
+  if (!categories.includes(sellCategory)) sellCategory = categories[0] || '';
+  const shownProducts = sellCategory ? availableProducts.filter((product) => (product.category.trim().toLowerCase() || 'other') === sellCategory) : availableProducts;
   const amount = totals();
   return `<div class="sell-layout">
     <section class="product-stage">
@@ -125,11 +150,11 @@ function renderSell() {
         <div><p class="eyebrow">take your time.</p><h1>what are we making?</h1><p>tap a drink, choose the extras, and keep the line moving.</p></div>
         <div class="header-badges">${isOwner() ? `<button class="price-switcher" data-action="open-price-picker"><span>${esc(activePriceList()?.name || 'pricing')}</span><i data-lucide="chevron-down"></i></button>` : `<span class="price-switcher read-only"><span>${esc(activePriceList()?.name || 'pricing')}</span></span>`}<span class="date-badge">${new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }).toLowerCase()}</span></div>
       </header>
-      <div class="section-label"><span>matcha</span><small>${availableProducts.filter((item) => !item.soldOut).length} available</small></div>
-      <div class="product-grid">${availableProducts.map(renderProductCard).join('')}</div>
+      <div class="category-section"><div><span>categories</span><small>${shownProducts.filter((item) => !productUnavailable(item)).length} available</small></div><nav aria-label="product categories">${categories.map((category) => `<button class="${sellCategory === category ? 'active' : ''}" data-sell-category="${esc(category)}">${esc(category)}</button>`).join('')}</nav></div>
+      <div class="product-grid">${shownProducts.map(renderProductCard).join('')}</div>
     </section>
     <aside class="cart-stage">
-      <div class="cart-header"><div class="cart-title"><h2>current order</h2><span>#${String(settings.nextOrderNumber).padStart(3, '0')}</span></div>${cart.length ? '<button class="text-button light clear-order" data-action="clear-cart" aria-label="clear current order"><i data-lucide="trash-2"></i><span>clear</span></button>' : ''}</div>
+      <div class="cart-header"><div class="cart-title"><h2>current order</h2><span>${nextOrderReference()}</span></div>${cart.length ? '<button class="text-button light clear-order" data-action="clear-cart" aria-label="clear current order"><i data-lucide="trash-2"></i><span>clear</span></button>' : ''}</div>
       <div class="cart-scroll">${cart.length ? cart.map(renderCartLine).join('') : `<div class="empty-cart"><div class="empty-cup"><span></span></div><h3>take your time.</h3><p>your next good cup<br>starts on the left.</p></div>`}</div>
       ${cart.length ? `<div class="order-fields">
         <div class="inline-fields"><label><span>customer</span><input data-field="customer" value="${esc(customerName)}" placeholder="walk-in name (optional)"></label><label><span>note</span><input data-field="note" value="${esc(orderNote)}" placeholder="e.g. less ice"></label></div>
@@ -147,9 +172,10 @@ function renderSell() {
 }
 
 function renderProductCard(product: Product) {
-  const price = currentPrice(product);
-  return `<button class="product-card ${product.soldOut ? 'sold-out' : ''}" data-product="${product.id}" ${product.soldOut ? 'disabled' : ''}>
-    <div class="product-image"><img src="${esc(product.image)}" alt="" loading="lazy"><span class="add-dot">+</span>${product.soldOut ? '<em>sold out</em>' : ''}</div>
+  const price = menuAmount(currentPrice(product));
+  const unavailable = productUnavailable(product);
+  return `<button class="product-card ${unavailable ? 'sold-out' : ''}" data-product="${product.id}" ${unavailable ? 'disabled' : ''}>
+    <div class="product-image"><img src="${esc(product.image)}" alt="" loading="lazy"><span class="add-dot"><i data-lucide="plus"></i></span>${unavailable ? '<em>unavailable</em>' : ''}</div>
     <small>${esc(product.sku)}</small><h3>${esc(product.name)}</h3><p>${esc(product.description)}</p>
     <div class="product-price"><strong>${money.format(price)}</strong></div>
   </button>`;
@@ -238,7 +264,7 @@ function renderOrders() {
   const now = new Date();
   const rangeStart = orderRange === 'today' ? new Date(now.getFullYear(), now.getMonth(), now.getDate()) : orderRange === '7days' ? new Date(now.getTime() - 6 * 86400000) : orderRange === '30days' ? new Date(now.getTime() - 29 * 86400000) : null;
   const matches = orders.filter((order) => {
-    const matchesSearch = !query || String(order.number).includes(query) || order.customerName.toLowerCase().includes(query) || paymentLabel(order.paymentMethod).includes(query);
+    const matchesSearch = !query || String(order.number).includes(query) || order.localReceiptCode?.toLowerCase().includes(query) || order.customerName.toLowerCase().includes(query) || order.deviceName?.toLowerCase().includes(query) || paymentLabel(order.paymentMethod).includes(query);
     return matchesSearch && (!rangeStart || new Date(order.createdAt) >= rangeStart) && (orderStatus === 'all' || order.status === orderStatus) && (orderPayment === 'all' || order.paymentMethod === orderPayment);
   }).sort((a, b) => orderSort === 'oldest' ? a.createdAt.localeCompare(b.createdAt) : orderSort === 'highest' ? b.total - a.total : orderSort === 'lowest' ? a.total - b.total : b.createdAt.localeCompare(a.createdAt));
   const today = new Date().toDateString();
@@ -248,7 +274,7 @@ function renderOrders() {
     <div class="order-strip"><div><span>today's sales</span><strong>${money.format(todayOrders.reduce((sum, order) => sum + order.total, 0))}</strong></div><div><span>today's orders</span><strong>${todayOrders.length}</strong></div><div class="all-orders-stat"><span>all recorded</span><strong>${orders.length} orders</strong></div></div>
     <div class="orders-toolbar panel"><label class="search-box"><i data-lucide="search"></i><input data-field="order-search" value="${esc(orderSearch)}" placeholder="search order, customer, payment"></label><div class="table-filters"><label><span class="visually-hidden">date range</span><select data-order-filter="range"><option value="all" ${orderRange === 'all' ? 'selected' : ''}>all time</option><option value="today" ${orderRange === 'today' ? 'selected' : ''}>today</option><option value="7days" ${orderRange === '7days' ? 'selected' : ''}>last 7 days</option><option value="30days" ${orderRange === '30days' ? 'selected' : ''}>last 30 days</option></select></label><label><span class="visually-hidden">status</span><select data-order-filter="status"><option value="all" ${orderStatus === 'all' ? 'selected' : ''}>all statuses</option><option value="completed" ${orderStatus === 'completed' ? 'selected' : ''}>completed</option><option value="refunded" ${orderStatus === 'refunded' ? 'selected' : ''}>refunded</option><option value="voided" ${orderStatus === 'voided' ? 'selected' : ''}>voided</option></select></label><label><span class="visually-hidden">payment</span><select data-order-filter="payment"><option value="all" ${orderPayment === 'all' ? 'selected' : ''}>all payments</option>${paymentMethods.map((method) => `<option value="${method.id}" ${orderPayment === method.id ? 'selected' : ''}>${method.label}</option>`).join('')}</select></label><label><span class="visually-hidden">sort orders</span><select data-order-filter="sort"><option value="newest" ${orderSort === 'newest' ? 'selected' : ''}>newest first</option><option value="oldest" ${orderSort === 'oldest' ? 'selected' : ''}>oldest first</option><option value="highest" ${orderSort === 'highest' ? 'selected' : ''}>highest total</option><option value="lowest" ${orderSort === 'lowest' ? 'selected' : ''}>lowest total</option></select></label></div></div>
     <section class="order-table panel"><div class="table-head"><span>order</span><span>time</span><span>items</span><span>payment</span><span>status</span><span>total</span></div>
-      ${matches.length ? matches.map((order) => `<button class="table-row" data-order="${order.id}"><span><strong>#${String(order.number).padStart(3, '0')}</strong><small>${esc(order.customerName || 'walk-in')}</small></span><span>${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()}</span><span>${order.lines.reduce((sum, line) => sum + line.quantity, 0)}</span><span>${paymentLabel(order.paymentMethod)}</span><span><i class="status-pill ${order.status}">${order.status}</i></span><span><strong>${money.format(order.total)}</strong><i data-lucide="chevron-right"></i></span></button>`).join('') : emptyTable(query || orderRange !== 'all' || orderStatus !== 'all' || orderPayment !== 'all' ? 'no orders match these filters.' : 'completed orders will appear here.')}
+      ${matches.length ? matches.map((order) => `<button class="table-row" data-order="${order.id}"><span><strong>${orderReference(order)}</strong><small>${esc(order.customerName || 'walk-in')}${isPendingOrder(order) ? ' · waiting to sync' : ''}</small></span><span>${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()}</span><span>${order.lines.reduce((sum, line) => sum + line.quantity, 0)}</span><span>${paymentLabel(order.paymentMethod)}</span><span><i class="status-pill ${isPendingOrder(order) ? 'pending' : order.status}">${isPendingOrder(order) ? 'pending' : order.status}</i></span><span><strong>${money.format(order.total)}</strong><i data-lucide="chevron-right"></i></span></button>`).join('') : emptyTable(query || orderRange !== 'all' || orderStatus !== 'all' || orderPayment !== 'all' ? 'no orders match these filters.' : 'completed orders will appear here.')}
     </section>
   </div>`;
 }
@@ -257,17 +283,26 @@ function renderCatalog() {
   const activeProducts = products.filter((item) => !item.archived);
   const activeModifiers = modifiers.filter((item) => !item.archived);
   const availablePriceLists = priceLists.filter((item) => !item.archived);
-  const action = catalogTab === 'products' ? '<button class="primary-small add-action" data-action="new-product"><i data-lucide="circle-plus"></i><span>add product</span></button>' : catalogTab === 'addons' ? '<button class="primary-small add-action" data-action="new-modifier"><i data-lucide="circle-plus"></i><span>add add-on</span></button>' : '<button class="primary-small add-action" data-action="new-price-list"><i data-lucide="circle-plus"></i><span>add price list</span></button>';
+  const archivedProducts = products.filter((item) => item.archived);
+  const archivedModifiers = modifiers.filter((item) => item.archived);
+  const archivedPriceLists = priceLists.filter((item) => item.archived);
+  const archivedCount = archivedProducts.length + archivedModifiers.length + archivedPriceLists.length;
+  const action = catalogTab === 'products' ? '<button class="primary-small add-action" data-action="new-product"><i data-lucide="circle-plus"></i><span>add product</span></button>' : catalogTab === 'addons' ? '<button class="primary-small add-action" data-action="new-modifier"><i data-lucide="circle-plus"></i><span>add add-on</span></button>' : catalogTab === 'prices' ? '<button class="primary-small add-action" data-action="new-price-list"><i data-lucide="circle-plus"></i><span>add price list</span></button>' : '';
+  const archiveRows = [
+    ...archivedProducts.map((item) => `<article class="archive-row"><span class="archive-kind"><i data-lucide="archive"></i></span><div><small>product · ${esc(item.sku)}</small><strong>${esc(item.name)}</strong></div><button data-restore-product="${item.id}"><i data-lucide="check"></i><span>restore</span></button></article>`),
+    ...archivedModifiers.map((item) => `<article class="archive-row"><span class="archive-kind"><i data-lucide="archive"></i></span><div><small>add-on · ${esc(item.sku)}</small><strong>${esc(item.name)}</strong></div><button data-restore-modifier="${item.id}"><i data-lucide="check"></i><span>restore</span></button></article>`),
+    ...archivedPriceLists.map((item) => `<article class="archive-row"><span class="archive-kind"><i data-lucide="archive"></i></span><div><small>price list</small><strong>${esc(item.name)}</strong></div><button data-restore-price-list="${item.id}"><i data-lucide="check"></i><span>restore</span></button></article>`),
+  ].join('');
   return `<div class="page catalog-page">
     ${pageHeader('menu', 'drinks, add-ons, and pricing in one quiet place.', action)}
-    <div class="tabs"><button class="${catalogTab === 'products' ? 'active' : ''}" data-catalog-tab="products">products <span>${activeProducts.length}</span></button><button class="${catalogTab === 'addons' ? 'active' : ''}" data-catalog-tab="addons">add-ons <span>${activeModifiers.length}</span></button><button class="${catalogTab === 'prices' ? 'active' : ''}" data-catalog-tab="prices">price lists <span>${availablePriceLists.length}</span></button></div>
-    ${catalogTab === 'products' ? `<div class="catalog-list">${activeProducts.map((product) => `<article class="catalog-row product-admin-row ${product.soldOut ? 'is-sold' : ''}"><div class="catalog-thumb"><img src="${esc(product.image)}" alt=""></div><div class="catalog-name"><small>${esc(product.sku)}</small><strong>${esc(product.name)}</strong><span>${esc(product.description)}</span></div><div class="catalog-price"><small>${esc(activePriceList()?.name || 'active price')}</small><strong>${money.format(currentPrice(product))}</strong></div><button class="stock-toggle ${product.soldOut ? 'sold' : ''}" data-sold-out="${product.id}">${product.soldOut ? 'sold out' : 'available'}</button><button class="row-menu" data-edit-product="${product.id}"><i data-lucide="pencil"></i><span>edit</span></button></article>`).join('')}</div>` : catalogTab === 'addons' ? `<div class="catalog-list">${activeModifiers.map((item) => `<article class="catalog-row addon-row"><div class="addon-mark"><i data-lucide="circle-plus"></i></div><div class="catalog-name"><small>${esc(item.sku)}</small><strong>${esc(item.name)}</strong><span>available on ${products.filter((product) => !product.archived && product.modifierIds.includes(item.id)).length} product(s)</span></div><div class="catalog-price"><small>price</small><strong>${money.format(item.price)}</strong></div><button class="row-menu" data-edit-modifier="${item.id}"><i data-lucide="pencil"></i><span>edit</span></button></article>`).join('')}</div>` : `<div class="price-list-grid">${availablePriceLists.map((list) => renderPriceListCard(list)).join('')}</div>`}
+    <div class="tabs"><button class="${catalogTab === 'products' ? 'active' : ''}" data-catalog-tab="products">products <span>${activeProducts.length}</span></button><button class="${catalogTab === 'addons' ? 'active' : ''}" data-catalog-tab="addons">add-ons <span>${activeModifiers.length}</span></button><button class="${catalogTab === 'prices' ? 'active' : ''}" data-catalog-tab="prices">price lists <span>${availablePriceLists.length}</span></button><button class="${catalogTab === 'archive' ? 'active' : ''}" data-catalog-tab="archive">archive <span>${archivedCount}</span></button></div>
+    ${catalogTab === 'products' ? `<div class="catalog-list">${activeProducts.map((product) => { const unavailable = productUnavailable(product); return `<article class="catalog-row product-admin-row ${unavailable ? 'is-sold' : ''}"><div class="catalog-thumb"><img src="${esc(product.image)}" alt=""></div><div class="catalog-name"><small>${esc(product.sku)}</small><strong>${esc(product.name)}</strong><span>${esc(product.description)}</span></div><div class="catalog-price"><small>${esc(activePriceList()?.name || 'active price')}</small><strong>${money.format(currentPrice(product))}</strong></div><div class="inventory-cell">${product.trackStock ? `<small>stock on hand</small><div class="stock-stepper"><button data-stock-adjust="${product.id}" data-delta="-1" aria-label="remove one from ${esc(product.name)} stock"><i data-lucide="minus"></i></button><strong>${product.stockQuantity || 0}</strong><button data-stock-adjust="${product.id}" data-delta="1" aria-label="add one to ${esc(product.name)} stock"><i data-lucide="plus"></i></button></div>` : '<small>stock</small><strong>not tracked</strong>'}</div><button class="stock-toggle ${unavailable ? 'sold' : ''}" data-availability="${product.id}"><i data-lucide="${unavailable ? 'x' : 'check'}"></i><span>${unavailable ? 'unavailable' : 'available'}</span></button><button class="row-menu" data-edit-product="${product.id}"><i data-lucide="pencil"></i><span>edit</span></button></article>`; }).join('')}</div>` : catalogTab === 'addons' ? `<div class="catalog-list">${activeModifiers.map((item) => `<article class="catalog-row addon-row"><div class="addon-mark"><i data-lucide="circle-plus"></i></div><div class="catalog-name"><small>${esc(item.sku)}</small><strong>${esc(item.name)}</strong><span>available on ${products.filter((product) => !product.archived && product.modifierIds.includes(item.id)).length} product(s)</span></div><div class="catalog-price"><small>price</small><strong>${money.format(item.price)}</strong></div><button class="row-menu" data-edit-modifier="${item.id}"><i data-lucide="pencil"></i><span>edit</span></button></article>`).join('')}</div>` : catalogTab === 'prices' ? `<div class="price-list-grid">${availablePriceLists.map((list) => renderPriceListCard(list)).join('')}</div>` : `<section class="archive-panel"><div class="archive-explainer"><i data-lucide="archive"></i><div><strong>archived items are hidden, not deleted</strong><small>restore them anytime without changing past orders.</small></div></div>${archiveRows || emptyPanel('nothing is archived.', 'archive')}</section>`}
   </div>`;
 }
 
 function renderSettings() {
   const availablePriceLists = priceLists.filter((item) => !item.archived);
-  const teamCard = isCloudConfigured && currentProfile?.role === 'owner' ? `<section class="settings-card panel team-card"><div class="settings-title"><span><i data-lucide="users-round"></i></span><div><h2>team access</h2><p>create staff access without waiting for email.</p></div></div><form id="invite-staff-form"><div class="team-create-fields"><label><span>staff name</span><input name="displayName" autocomplete="name" placeholder="e.g. sam" required></label><label><span>email</span><input name="email" type="email" autocomplete="email" placeholder="name@example.com" required></label><label class="full"><span>temporary password</span><input name="temporaryPassword" type="password" autocomplete="new-password" minlength="8" placeholder="at least 8 characters" required></label></div><p class="team-helper">share this password privately. staff can change it from account after signing in.</p><button class="secondary-button wide invite-button" type="submit"><i data-lucide="key-round"></i><span>create staff account</span></button></form><div class="team-list">${businessProfiles.map((profile) => `<div><span class="team-avatar">${esc((profile.displayName || profile.email).slice(0, 1).toLowerCase())}</span><span><strong>${esc(profile.displayName || profile.email)}</strong><small>${esc(profile.email)}</small></span><em class="team-role">${profile.role}</em></div>`).join('') || '<p>your team will appear here.</p>'}</div></section>` : '';
+  const teamCard = isCloudConfigured && currentProfile?.role === 'owner' ? `<section class="settings-card panel team-card"><div class="settings-title"><span><i data-lucide="users-round"></i></span><div><h2>team access</h2><p>create accounts and choose who can manage the business.</p></div></div><form id="invite-staff-form"><div class="team-create-fields"><label><span>name</span><input name="displayName" autocomplete="name" placeholder="e.g. sam" required></label><label><span>email</span><input name="email" type="email" autocomplete="email" placeholder="name@example.com" required></label><label><span>account type</span><select name="role"><option value="staff">staff · sell and view orders</option><option value="owner">owner · full access</option></select></label><label><span>temporary password</span><input name="temporaryPassword" type="password" autocomplete="new-password" minlength="8" placeholder="at least 8 characters" required></label></div><p class="team-helper">only give owner access to trusted people. every person should use their own account.</p><button class="secondary-button wide invite-button" type="submit" ${navigator.onLine ? '' : 'disabled'}><i data-lucide="key-round"></i><span>${navigator.onLine ? 'create account' : 'internet required to create accounts'}</span></button></form><div class="team-list">${businessProfiles.map((profile) => `<div><span class="team-avatar">${esc((profile.displayName || profile.email).slice(0, 1).toLowerCase())}</span><span><strong>${esc(profile.displayName || profile.email)}</strong><small>${esc(profile.email)}${profile.id === currentProfile?.id ? ' · you' : ''}</small></span><label class="team-role-control"><span class="visually-hidden">account type</span><select data-team-role="${profile.id}" ${profile.id === currentProfile?.id || !navigator.onLine ? 'disabled' : ''}><option value="staff" ${profile.role === 'staff' ? 'selected' : ''}>staff</option><option value="owner" ${profile.role === 'owner' ? 'selected' : ''}>owner</option></select></label></div>`).join('') || '<p>your team will appear here.</p>'}</div></section>` : '';
   return `<div class="page settings-page">
     ${pageHeader('settings', 'the small things that keep service smooth.', '')}
     <div class="settings-grid">
@@ -282,7 +317,6 @@ function renderSettings() {
       <section class="settings-card panel"><div class="settings-title"><span><i data-lucide="download"></i></span><div><h2>exports & backup</h2><p>keep a copy somewhere safe.</p></div></div>
         <div class="settings-actions"><button data-action="export-excel"><strong>export excel workbook</strong><small>summary, orders, items, and payments</small><b><i data-lucide="file-spreadsheet"></i></b></button><button data-action="export-csv"><strong>export sales csv</strong><small>opens in excel or google sheets</small><b><i data-lucide="receipt-text"></i></b></button><button data-action="backup"><strong>download full backup</strong><small>products, settings, and all sales</small><b><i data-lucide="download"></i></b></button><button data-action="import"><strong>restore from backup</strong><small>choose a doubletime backup file</small><b class="restore-icon"><i data-lucide="download"></i></b></button><input id="backup-input" type="file" accept="application/json" hidden></div>
       </section>
-      <section class="settings-card panel"><div class="settings-title"><span><i data-lucide="house"></i></span><div><h2>ipad home screen</h2><p>open doubletime like a regular app.</p></div></div><ol class="install-steps"><li><span>1</span>open this page in safari</li><li><span>2</span>tap the share button</li><li><span>3</span>choose “add to home screen”</li></ol><button class="secondary-button wide" data-action="install">${deferredInstallPrompt ? 'install doubletime' : 'ready for home screen'}</button></section>
       <form class="settings-card panel" id="security-settings"><div class="settings-title"><span><i data-lucide="settings"></i></span><div><h2>manager pin</h2><p>used for voids and refunds.</p></div></div><label><span>4–8 digit pin</span><input name="managerPin" inputmode="numeric" pattern="[0-9]{4,8}" value="${esc(settings.managerPin)}" placeholder="enter a new 4–8 digit pin" required></label><button class="secondary-button wide" type="submit">update pin</button></form>
       ${teamCard}
     </div>
@@ -295,7 +329,7 @@ function pageHeader(title: string, description: string, actions: string) {
 
 function renderPriceListCard(list: PriceList) {
   const isActive = list.id === settings.activePriceListId;
-  return `<article class="price-list-card ${isActive ? 'active' : ''}"><div class="price-list-icon"><i data-lucide="philippine-peso"></i></div><div><small>${isActive ? 'active now' : 'price list'}</small><h3>${esc(list.name)}</h3><p>${products.filter((item) => !item.archived && list.prices[item.id] !== undefined).length} products priced</p></div><div class="price-list-actions">${isActive ? '<span class="active-check"><i data-lucide="check"></i> in use</span>' : `<button class="activate-price" data-use-price-list="${list.id}" aria-label="activate ${esc(list.name)}" title="activate price list"><i data-lucide="circle-check-big"></i></button>`}<button data-edit-price-list="${list.id}" aria-label="edit ${esc(list.name)}"><i data-lucide="pencil"></i></button><button data-duplicate-price-list="${list.id}" aria-label="duplicate ${esc(list.name)}"><i data-lucide="copy"></i></button>${!isActive && priceLists.filter((item) => !item.archived).length > 1 ? `<button class="danger-icon" data-archive-price-list="${list.id}" aria-label="delete ${esc(list.name)}"><i data-lucide="trash-2"></i></button>` : ''}</div></article>`;
+  return `<article class="price-list-card ${isActive ? 'active' : ''}"><div class="price-list-icon"><i data-lucide="philippine-peso"></i></div><div><small>${isActive ? 'active now' : 'price list'}</small><h3>${esc(list.name)}</h3><p>${priceListProductCount(list)} products included</p></div><div class="price-list-actions">${isActive ? '<span class="active-check"><i data-lucide="check"></i> in use</span>' : `<button class="activate-price" data-use-price-list="${list.id}" aria-label="activate ${esc(list.name)}" title="activate price list"><i data-lucide="circle-check-big"></i></button>`}<button data-edit-price-list="${list.id}" aria-label="edit ${esc(list.name)}"><i data-lucide="pencil"></i></button><button data-duplicate-price-list="${list.id}" aria-label="duplicate ${esc(list.name)}"><i data-lucide="copy"></i></button>${!isActive && priceLists.filter((item) => !item.archived).length > 1 ? `<button class="danger-icon" data-archive-price-list="${list.id}" aria-label="archive ${esc(list.name)}"><i data-lucide="archive"></i></button>` : ''}</div></article>`;
 }
 
 function kpi(label: string, value: string, note: string) { return `<article class="kpi"><span>${label}</span><strong>${value}</strong><small>${note}</small></article>`; }
@@ -318,9 +352,11 @@ function renderCloudSetup() {
 }
 
 function renderAccountModal() {
-  const cloudCopy = usingCloud() ? 'synced with the doubletime cloud database' : 'local preview only · not shared with other devices';
+  const state = !navigator.onLine ? 'offline' : syncPhase;
+  const cloudCopy = usingCloud() ? state === 'offline' ? `offline access active · ${pendingSyncCount ? `${pendingSyncCount} waiting to sync` : 'saved data is ready'}` : state === 'syncing' ? 'syncing changes with your other devices' : pendingSyncCount ? `${pendingSyncCount} changes waiting to sync` : 'up to date across your authorized devices' : 'local preview only · not shared with other devices';
   const access = currentProfile ? `<section class="account-password"><div><strong>account password</strong><small>set or change the password used on your devices.</small></div><form id="change-password-form"><label><span>new password</span><input name="password" type="password" autocomplete="new-password" minlength="8" placeholder="at least 8 characters" required></label><label><span>confirm password</span><input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" placeholder="type it again" required></label><button class="secondary-button wide" type="submit"><i data-lucide="key-round"></i><span>save password</span></button></form></section><button class="danger-button account-signout" data-action="sign-out"><i data-lucide="log-out"></i><span>sign out on this ipad</span></button>` : '<p class="local-account-note">add the Supabase project details to enable owner and staff sign-in.</p>';
-  return `<div class="modal-layer"><section class="modal-card compact account-card">${modalHead('account', 'the person currently using this ipad.')}<div class="account-profile"><span>${profileInitials()}</span><div><strong>${esc(currentProfile?.displayName || 'local preview')}</strong><small>${esc(currentProfile?.email || 'supabase is not connected yet')}</small></div><em>${currentProfile?.role || 'local'}</em></div><div class="sync-note ${usingCloud() ? '' : 'local'}"><i data-lucide="${usingCloud() ? 'cloud' : 'wifi-off'}"></i><span>${cloudCopy}</span></div>${access}</section></div>`;
+  const device = deviceIdentity ? `<section class="device-account"><div><strong>this ipad</strong><small>offline receipts use ${esc(deviceIdentity.prefix)}-001, ${esc(deviceIdentity.prefix)}-002, and so on.</small></div><form id="device-settings-form"><label><span>device name</span><input name="deviceName" value="${esc(deviceIdentity.name)}" maxlength="30" placeholder="e.g. popup ipad" required></label><label><span>receipt prefix</span><input name="devicePrefix" value="${esc(deviceIdentity.prefix)}" maxlength="3" pattern="[A-Za-z0-9]{1,3}" placeholder="e.g. A" required></label><button class="secondary-button wide" type="submit">save ipad details</button></form></section>` : '';
+  return `<div class="modal-layer"><section class="modal-card compact account-card">${modalHead('account', 'the person and ipad currently in use.')}<div class="account-profile"><span>${profileInitials()}</span><div><strong>${esc(currentProfile?.displayName || 'local preview')}</strong><small>${esc(currentProfile?.email || 'supabase is not connected yet')}</small></div><em>${currentProfile?.role || 'local'}</em></div><div class="sync-note ${state} ${usingCloud() ? '' : 'local'}"><i data-lucide="${state === 'offline' ? 'wifi-off' : 'cloud'}"></i><span>${cloudCopy}</span></div>${device}${access}</section></div>`;
 }
 
 function renderModal() {
@@ -344,10 +380,10 @@ function renderModifierModal() {
   const available = modifiers.filter((item) => !item.archived && activeProduct!.modifierIds.includes(item.id));
   const extra = available.filter((item) => selectedModifiers.has(item.id)).reduce((sum, item) => sum + item.price, 0);
   return `<div class="modal-layer"><section class="modal-card compact">${modalHead(activeProduct!.name, 'make it yours. add-ons are optional.')}
-    <div class="selected-product"><div><img src="${esc(activeProduct!.image)}" alt=""></div><span>${esc(activeProduct!.description)}</span><strong>${money.format(currentPrice(activeProduct!))}</strong></div>
+    <div class="selected-product"><div><img src="${esc(activeProduct!.image)}" alt=""></div><span>${esc(activeProduct!.description)}</span><strong>${money.format(menuAmount(currentPrice(activeProduct!)))}</strong></div>
     <div class="field-heading"><span>add-ons</span><small>choose any</small></div>
-    ${available.length ? `<div class="modifier-grid">${available.map((item) => `<button class="modifier-option ${selectedModifiers.has(item.id) ? 'selected' : ''}" data-modifier="${item.id}"><span>${esc(item.name)}</span><strong>+${money.format(item.price)}</strong><i>✓</i></button>`).join('')}</div>` : '<div class="simple-empty">no add-ons are set for this drink.</div>'}
-    <button class="modal-primary" data-action="add-to-cart"><span>add to order</span><strong>${money.format(currentPrice(activeProduct!) + extra)}</strong></button>
+    ${available.length ? `<div class="modifier-grid">${available.map((item) => `<button class="modifier-option ${selectedModifiers.has(item.id) ? 'selected' : ''}" data-modifier="${item.id}"><span>${esc(item.name)}</span><strong>+${money.format(menuAmount(item.price))}</strong><i>✓</i></button>`).join('')}</div>` : '<div class="simple-empty">no add-ons are set for this drink.</div>'}
+    <button class="modal-primary" data-action="add-to-cart"><span>add to order</span><strong>${money.format(menuAmount(currentPrice(activeProduct!) + extra))}</strong></button>
   </section></div>`;
 }
 
@@ -364,7 +400,7 @@ function renderPaymentModal() {
   const amount = totals();
   const received = Number(cashReceived) || 0;
   const change = Math.max(0, received - amount.total);
-  return `<div class="modal-layer"><section class="modal-card payment-card">${modalHead('payment', `order #${String(settings.nextOrderNumber).padStart(3, '0')} · ${money.format(amount.total)}`)}
+  return `<div class="modal-layer"><section class="modal-card payment-card">${modalHead('payment', `order ${nextOrderReference()} · ${money.format(amount.total)}`)}
     <div class="payment-options">${paymentMethods.map((method) => `<button class="payment-option ${paymentMethod === method.id ? 'selected' : ''}" data-payment="${method.id}"><i><span data-lucide="${method.icon}"></span></i><span>${method.label}</span><small>${method.note}</small></button>`).join('')}</div>
     ${paymentMethod === 'cash' ? `<div class="cash-section"><label><span>cash received</span><div class="money-input"><b>₱</b><input id="cash-received" inputmode="decimal" value="${esc(cashReceived)}" placeholder="0.00"></div></label><div class="quick-cash">${quickCash(amount.total).map((value) => `<button data-cash="${value}">${money.format(value)}</button>`).join('')}</div><div class="change-row"><span>change</span><strong id="change-value">${money.format(change)}</strong></div></div>` : `<div class="payment-note">confirm the ${paymentLabel(paymentMethod)} payment before completing the sale.</div>`}
     <button class="modal-primary" data-action="complete-sale" ${paymentMethod === 'cash' && received < amount.total ? 'disabled' : ''}><span>complete sale</span><strong>${money.format(amount.total)}</strong></button>
@@ -375,21 +411,22 @@ function quickCash(total: number) { return [...new Set([Math.ceil(total / 50) * 
 
 function renderReceiptModal(order: Order) {
   const change = order.cashReceived ? order.cashReceived - order.total : 0;
-  return `<div class="modal-layer receipt-layer"><section class="modal-card receipt-card"><button class="modal-close receipt-close" data-action="new-order" aria-label="close receipt"><i data-lucide="x"></i></button>${brandMark()}<p>the sip you deserve.</p><div class="receipt-number">order #${String(order.number).padStart(3, '0')}</div><div class="receipt-lines">${order.lines.map((line) => `<div><span>${line.quantity}× ${esc(line.product.name)}<small>${line.modifiers.map((item) => esc(item.name)).join(', ')}</small></span><strong>${money.format(lineUnitPrice(line) * line.quantity)}</strong></div>`).join('')}</div><div class="receipt-totals"><div><span>paid via ${paymentLabel(order.paymentMethod)}</span><strong>${money.format(order.total)}</strong></div>${order.paymentMethod === 'cash' ? `<div><span>change</span><strong>${money.format(change)}</strong></div>` : ''}</div><small class="receipt-time">${new Date(order.createdAt).toLocaleString('en-PH').toLowerCase()}</small><button class="modal-primary" data-action="new-order">start a new order</button></section></div>`;
+  return `<div class="modal-layer receipt-layer"><section class="modal-card receipt-card"><button class="modal-close receipt-close" data-action="new-order" aria-label="close receipt"><i data-lucide="x"></i></button>${brandMark()}<p>the sip you deserve.</p><div class="receipt-number">order ${orderReference(order)}</div>${isPendingOrder(order) ? '<div class="receipt-sync-note"><i data-lucide="wifi-off"></i><span>saved on this ipad · waiting to sync</span></div>' : ''}<div class="receipt-lines">${order.lines.map((line) => `<div><span>${line.quantity}× ${esc(line.product.name)}<small>${line.modifiers.map((item) => esc(item.name)).join(', ')}</small></span><strong>${money.format(lineUnitPrice(line) * line.quantity)}</strong></div>`).join('')}</div><div class="receipt-totals"><div><span>paid via ${paymentLabel(order.paymentMethod)}</span><strong>${money.format(order.total)}</strong></div>${order.paymentMethod === 'cash' ? `<div><span>change</span><strong>${money.format(change)}</strong></div>` : ''}</div><small class="receipt-time">${new Date(order.createdAt).toLocaleString('en-PH').toLowerCase()} · ${esc(order.deviceName || deviceIdentity.name)}</small><button class="modal-primary" data-action="new-order">start a new order</button></section></div>`;
 }
 
 function renderProductModal() {
   const item = editingProduct;
   const image = item?.image || '';
   return `<div class="modal-layer"><form class="modal-card editor-card" id="product-form">${modalHead(item ? 'edit product' : 'add product', 'changes only affect the pos menu.')}
-    <input type="hidden" name="id" value="${esc(item?.id || '')}"><div class="two-fields"><label><span>product name</span><input name="name" value="${esc(item?.name || '')}" placeholder="e.g. strawberry cloud" required></label><label><span>sku</span><input name="sku" value="${esc(item?.sku || '')}" placeholder="e.g. DT-MAT-NEW" required></label></div>
+    <input type="hidden" name="id" value="${esc(item?.id || '')}"><div class="two-fields"><label><span>product name</span><input name="name" value="${esc(item?.name || '')}" placeholder="e.g. strawberry cloud" required></label><label class="sku-field"><span>sku</span><input id="product-sku" name="sku" value="${esc(item?.sku || 'DT-')}" placeholder="e.g. DT-MAT-NEW" autocapitalize="characters" autocomplete="off" spellcheck="false" required><span class="sku-suggestions"><small>quick start</small><button type="button" data-sku-prefix="DT-MAT-" data-sku-target="product-sku">matcha</button><button type="button" data-sku-prefix="DT-COF-" data-sku-target="product-sku">coffee</button><button type="button" data-sku-prefix="DT-PAS-" data-sku-target="product-sku">pastry</button><button type="button" data-sku-prefix="DT-OTH-" data-sku-target="product-sku">other</button></span></label></div>
     <label><span>short description</span><input name="description" value="${esc(item?.description || '')}" placeholder="e.g. matcha with strawberry cream" required></label>
-    <div class="two-fields"><label><span>category</span><input name="category" value="${esc(item?.category || 'matcha')}" placeholder="e.g. matcha" required></label><label><span>${esc(activePriceList()?.name || 'active')} price</span><input name="price" type="number" min="0" step="0.01" value="${item ? currentPrice(item) : ''}" placeholder="0.00" required></label></div>
-    <div class="product-image-field"><span class="product-image-label">product image</span><label class="image-upload ${image ? 'has-image' : ''}" for="product-image-input">
+    <div class="two-fields"><label><span>category</span><input name="category" value="${esc(item?.category || 'matcha')}" placeholder="e.g. matcha" required></label><label><span>price</span><input name="price" type="number" min="0" step="1" value="${item ? currentPrice(item) : ''}" placeholder="0" required></label></div>
+    <div class="inventory-editor"><div class="two-fields"><label><span>availability</span><select name="availability"><option value="available" ${!item?.soldOut ? 'selected' : ''}>available</option><option value="unavailable" ${item?.soldOut ? 'selected' : ''}>unavailable</option></select></label><label><span>stock tracking</span><select name="trackStock" data-stock-tracking><option value="false" ${!item?.trackStock ? 'selected' : ''}>do not track</option><option value="true" ${item?.trackStock ? 'selected' : ''}>track stock</option></select></label></div><label class="stock-quantity-field ${item?.trackStock ? '' : 'disabled'}"><span>stock on hand</span><input name="stockQuantity" type="number" min="0" step="1" value="${item?.stockQuantity ?? 0}" placeholder="0" ${item?.trackStock ? '' : 'disabled'}></label></div>
+    <div class="product-image-field"><span class="product-image-label">product image</span><label class="image-upload" for="product-image-input">
       <input class="image-file-input" id="product-image-input" type="file" accept="image/*">
       <input id="product-image-value" type="hidden" name="image" value="${esc(image)}">
-      <img class="image-upload-preview" src="${esc(image)}" alt="product preview" ${image ? '' : 'hidden'}>
-      <span class="image-upload-placeholder" ${image ? 'hidden' : ''}><i data-lucide="image-plus"></i></span>
+      <img class="image-upload-preview" src="" alt="new product preview" hidden>
+      <span class="image-upload-placeholder"><i data-lucide="image-plus"></i></span>
       <span class="image-upload-copy"><strong>${image ? 'replace photo' : 'choose a photo'}</strong><small>tap to open photos, or drag an image here</small></span>
     </label></div>
     <div class="field-heading"><span>available add-ons</span><small>shown when this product is tapped</small></div><div class="checkbox-grid">${modifiers.filter((modifier) => !modifier.archived).map((modifier) => `<label><input type="checkbox" name="modifierIds" value="${modifier.id}" ${item?.modifierIds.includes(modifier.id) ? 'checked' : ''}><i>✓</i><span>${esc(modifier.name)}</span></label>`).join('')}</div>
@@ -399,26 +436,27 @@ function renderProductModal() {
 
 function renderAddonModal() {
   const item = editingModifier;
-  return `<div class="modal-layer"><form class="modal-card compact" id="modifier-form">${modalHead(item ? 'edit add-on' : 'add an add-on', 'keep extras simple and quick to tap.')}<input type="hidden" name="id" value="${esc(item?.id || '')}"><label><span>add-on name</span><input name="name" value="${esc(item?.name || '')}" placeholder="e.g. oat milk" required></label><div class="two-fields"><label><span>sku</span><input name="sku" value="${esc(item?.sku || '')}" placeholder="e.g. DT-ADD-OAT" required></label><label><span>price</span><input name="price" type="number" min="0" step="0.01" value="${item?.price ?? ''}" placeholder="0.00" required></label></div><div class="modal-split">${item ? '<button type="button" class="danger-button" data-action="archive-modifier"><i data-lucide="archive"></i><span>archive add-on</span></button>' : '<span></span>'}<button class="modal-primary fit" type="button" data-editor-save="modifier">save add-on</button></div></form></div>`;
+  return `<div class="modal-layer"><form class="modal-card compact" id="modifier-form">${modalHead(item ? 'edit add-on' : 'add an add-on', 'keep extras simple and quick to tap.')}<input type="hidden" name="id" value="${esc(item?.id || '')}"><label><span>add-on name</span><input name="name" value="${esc(item?.name || '')}" placeholder="e.g. oat milk" required></label><div class="two-fields"><label class="sku-field"><span>sku</span><input id="modifier-sku" name="sku" value="${esc(item?.sku || 'DT-ADD-')}" placeholder="e.g. DT-ADD-OAT" autocapitalize="characters" autocomplete="off" spellcheck="false" required><span class="sku-suggestions"><small>quick start</small><button type="button" data-sku-prefix="DT-ADD-" data-sku-target="modifier-sku">DT-ADD-</button></span></label><label><span>price</span><input name="price" type="number" min="0" step="1" value="${item?.price ?? ''}" placeholder="0" required></label></div><div class="modal-split">${item ? '<button type="button" class="danger-button" data-action="archive-modifier"><i data-lucide="archive"></i><span>archive add-on</span></button>' : '<span></span>'}<button class="modal-primary fit" type="button" data-editor-save="modifier">save add-on</button></div></form></div>`;
 }
 
 function renderPricePickerModal() {
   const available = priceLists.filter((item) => !item.archived);
-  return `<div class="modal-layer"><section class="modal-card compact">${modalHead('choose pricing', 'switch the whole menu in one tap.')}<div class="price-picker-list">${available.map((list) => `<button class="price-picker-option ${list.id === settings.activePriceListId ? 'selected' : ''}" data-use-price-list="${list.id}"><span><i data-lucide="philippine-peso"></i></span><div><strong>${esc(list.name)}</strong><small>${products.filter((item) => !item.archived && list.prices[item.id] !== undefined).length} products</small></div>${list.id === settings.activePriceListId ? '<i data-lucide="check"></i>' : ''}</button>`).join('')}</div><button class="subtle-link centered" data-action="manage-price-lists">manage price lists</button></section></div>`;
+  return `<div class="modal-layer"><section class="modal-card compact">${modalHead('choose pricing', 'switch the whole menu in one tap.')}<div class="price-picker-list">${available.map((list) => `<button class="price-picker-option ${list.id === settings.activePriceListId ? 'selected' : ''}" data-use-price-list="${list.id}"><span><i data-lucide="philippine-peso"></i></span><div><strong>${esc(list.name)}</strong><small>${priceListProductCount(list)} products</small></div>${list.id === settings.activePriceListId ? '<i data-lucide="check"></i>' : ''}</button>`).join('')}</div><button class="subtle-link centered" data-action="manage-price-lists">manage price lists</button></section></div>`;
 }
 
 function renderPriceListModal() {
   const source = editingPriceList || activePriceList();
   const availableProducts = products.filter((item) => !item.archived);
-  return `<div class="modal-layer"><form class="modal-card price-editor" id="price-list-form">${modalHead(editingPriceList ? 'edit price list' : 'new price list', 'one menu, one price for every drink.')}<input type="hidden" name="id" value="${esc(editingPriceList?.id || '')}"><label><span>price list name</span><input name="name" value="${esc(editingPriceList?.name || '')}" placeholder="e.g. porsche & pilates" required autofocus></label><div class="field-heading"><span>product prices</span><small>changes apply when this list is active</small></div><div class="price-editor-list">${availableProducts.map((product) => `<label><span class="price-product"><img src="${esc(product.image)}" alt=""><span><strong>${esc(product.name)}</strong><small>${esc(product.sku)}</small></span></span><span class="price-input"><b>₱</b><input name="price:${product.id}" type="number" min="0" step="0.01" value="${source?.prices[product.id] ?? product.price}" placeholder="0.00" required></span></label>`).join('')}</div><label class="switch-row activate-list"><span><strong>use after saving</strong><small>switch the selling screen to this list</small></span><input type="checkbox" name="activate" ${!editingPriceList ? 'checked' : ''}><i></i></label><button class="modal-primary" type="button" data-editor-save="price-list"><span>save price list</span><i data-lucide="check"></i></button></form></div>`;
+  return `<div class="modal-layer"><form class="modal-card price-editor" id="price-list-form">${modalHead(editingPriceList ? 'edit price list' : 'new price list', 'choose exactly what appears on this menu.')}<input type="hidden" name="id" value="${esc(editingPriceList?.id || '')}"><label><span>price list name</span><input name="name" value="${esc(editingPriceList?.name || '')}" placeholder="e.g. porsche & pilates" required autofocus></label><div class="field-heading"><span>menu items</span><small>turn off anything you do not want to sell on this price list</small></div><div class="price-editor-list">${availableProducts.map((product) => { const included = !source || priceListIncludes(source, product); return `<div class="price-editor-row ${included ? '' : 'excluded'}"><label class="price-include"><input name="includedProductIds" type="checkbox" value="${product.id}" ${included ? 'checked' : ''}><i>✓</i><span class="price-product"><img src="${esc(product.image)}" alt=""><span><strong>${esc(product.name)}</strong><small>${esc(product.sku)}</small></span></span></label><label class="price-input"><b>₱</b><input name="price:${product.id}" type="number" min="0" step="1" value="${source?.prices[product.id] ?? product.price}" placeholder="0" required></label></div>`; }).join('')}</div><label class="switch-row activate-list"><span><strong>use after saving</strong><small>switch the selling screen to this list</small></span><input type="checkbox" name="activate" ${!editingPriceList ? 'checked' : ''}><i></i></label><button class="modal-primary" type="button" data-editor-save="price-list"><span>save price list</span><i data-lucide="check"></i></button></form></div>`;
 }
 
 function renderOrderModal(order: Order) {
-  return `<div class="modal-layer"><section class="modal-card order-detail">${modalHead(`order #${String(order.number).padStart(3, '0')}`, `${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()} · ${paymentLabel(order.paymentMethod)}`)}<div class="order-detail-status"><span class="status-pill ${order.status}">${order.status}</span><strong>${money.format(order.total)}</strong></div><div class="detail-lines">${order.lines.map((line) => `<div><span><strong>${line.quantity}× ${esc(line.product.name)}</strong><small>${line.modifiers.map((item) => esc(item.name)).join(' · ') || 'no add-ons'}</small></span><strong>${money.format(lineUnitPrice(line) * line.quantity)}</strong></div>`).join('')}</div>${order.customerName || order.note ? `<div class="order-memo"><span>${esc(order.customerName || 'walk-in')}</span><p>${esc(order.note || 'no order note')}</p></div>` : ''}<div class="detail-totals"><div><span>subtotal</span><strong>${money.format(order.subtotal)}</strong></div>${order.discount ? `<div><span>${esc(order.discountLabel)}</span><strong>−${money.format(order.discount)}</strong></div>` : ''}${order.tax ? `<div><span>${esc(order.taxName)}</span><strong>${money.format(order.tax)}</strong></div>` : ''}<div><span>total</span><strong>${money.format(order.total)}</strong></div></div>${order.status === 'completed' ? `<div class="order-fix"><p>need to fix this sale? enter the manager pin.</p><div><input id="order-pin" inputmode="numeric" type="password" placeholder="manager pin"><button data-order-status="refunded">refund</button><button data-order-status="voided">void</button></div></div>` : ''}</section></div>`;
+  const pending = isPendingOrder(order);
+  return `<div class="modal-layer"><section class="modal-card order-detail">${modalHead(`order ${orderReference(order)}`, `${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()} · ${paymentLabel(order.paymentMethod)} · ${esc(order.deviceName || 'this ipad')}`)}<div class="order-detail-status"><span class="status-pill ${pending ? 'pending' : order.status}">${pending ? 'waiting to sync' : order.status}</span><strong>${money.format(order.total)}</strong></div><div class="detail-lines">${order.lines.map((line) => `<div><span><strong>${line.quantity}× ${esc(line.product.name)}</strong><small>${line.modifiers.map((item) => esc(item.name)).join(' · ') || 'no add-ons'}</small></span><strong>${money.format(lineUnitPrice(line) * line.quantity)}</strong></div>`).join('')}</div>${order.customerName || order.note ? `<div class="order-memo"><span>${esc(order.customerName || 'walk-in')}</span><p>${esc(order.note || 'no order note')}</p></div>` : ''}<div class="detail-totals"><div><span>subtotal</span><strong>${money.format(order.subtotal)}</strong></div>${order.discount ? `<div><span>${esc(order.discountLabel)}</span><strong>−${money.format(order.discount)}</strong></div>` : ''}${order.tax ? `<div><span>${esc(order.taxName)}</span><strong>${money.format(order.tax)}</strong></div>` : ''}<div><span>total</span><strong>${money.format(order.total)}</strong></div></div>${pending ? '<div class="pending-order-note"><i data-lucide="wifi-off"></i><span>refunds and voids become available after this order syncs.</span></div>' : order.status === 'completed' ? `<div class="order-fix"><p>need to fix this sale? enter the manager pin.</p><div><input id="order-pin" inputmode="numeric" type="password" placeholder="manager pin"><button data-order-status="refunded">refund</button><button data-order-status="voided">void</button></div></div>` : ''}</section></div>`;
 }
 
-const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sold-out],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list]';
-const catalogTouchSelector = '[data-action="new-product"],[data-action="new-modifier"],[data-action="new-price-list"],[data-catalog-tab],[data-edit-product],[data-edit-modifier],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list]';
+const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sell-category],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-sku-prefix]';
+const catalogTouchSelector = '[data-action="new-product"],[data-action="new-modifier"],[data-action="new-price-list"],[data-catalog-tab],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list]';
 
 app.addEventListener('touchend', (event) => {
   if (!(event.target instanceof Element)) return;
@@ -446,16 +484,31 @@ app.addEventListener('click', async (event) => {
   if (!target) return;
 
   if (target.dataset.view) { const requested = target.dataset.view as View; if (!canOpenView(requested)) { toast('owner access required'); return; } view = requested; modal = ''; render(); return; }
+  if (target.dataset.sellCategory) { sellCategory = target.dataset.sellCategory; render(); return; }
+  if (target.dataset.skuPrefix && target.dataset.skuTarget) { const input = document.querySelector<HTMLInputElement>(`#${target.dataset.skuTarget}`); if (input) { input.value = target.dataset.skuPrefix; input.focus(); input.setSelectionRange(input.value.length, input.value.length); } return; }
   if (target.dataset.product) { activeProduct = products.find((item) => item.id === target.dataset.product)!; selectedModifiers.clear(); modal = 'modifiers'; render(); return; }
-  if (target.dataset.modifier) { selectedModifiers.has(target.dataset.modifier) ? selectedModifiers.delete(target.dataset.modifier) : selectedModifiers.add(target.dataset.modifier); render(); return; }
+  if (target.dataset.modifier) {
+    selectedModifiers.has(target.dataset.modifier) ? selectedModifiers.delete(target.dataset.modifier) : selectedModifiers.add(target.dataset.modifier);
+    target.classList.toggle('selected', selectedModifiers.has(target.dataset.modifier));
+    const selected = modifiers.filter((item) => selectedModifiers.has(item.id));
+    const total = menuUnitPrice(activeProduct!, selected);
+    const totalElement = document.querySelector<HTMLElement>('[data-action="add-to-cart"] strong');
+    if (totalElement) totalElement.textContent = money.format(total);
+    return;
+  }
   if (target.dataset.quantity) { const index = Number(target.dataset.quantity); cart[index].quantity += Number(target.dataset.delta); if (cart[index].quantity < 1) cart.splice(index, 1); render(); return; }
   if (target.dataset.remove) { cart.splice(Number(target.dataset.remove), 1); render(); return; }
   if (target.dataset.payment) { paymentMethod = target.dataset.payment as PaymentMethod; cashReceived = ''; render(); return; }
   if (target.dataset.cash) { cashReceived = target.dataset.cash; render(); focusCash(); return; }
   if (target.dataset.presetDiscount) { discount = { type: 'percent', value: Number(target.dataset.presetDiscount), label: `${target.dataset.presetDiscount}% off` }; modal = ''; render(); return; }
   if (target.dataset.order) { activeOrder = orders.find((item) => item.id === target.dataset.order)!; modal = 'order'; render(); return; }
-  if (target.dataset.catalogTab) { catalogTab = target.dataset.catalogTab as 'products' | 'addons' | 'prices'; render(); return; }
-  if (target.dataset.soldOut) { const item = products.find((product) => product.id === target.dataset.soldOut)!; item.soldOut = !item.soldOut; await save('products', item); await refreshData(); render(); return; }
+  if (target.dataset.catalogTab) { catalogTab = target.dataset.catalogTab as 'products' | 'addons' | 'prices' | 'archive'; render(); return; }
+  if (target.dataset.stockAdjust) { await adjustProductStock(target.dataset.stockAdjust, Number(target.dataset.delta), 'manual'); await refreshData(); render(); toast('stock updated'); return; }
+  if (target.dataset.availability) {
+    const item = products.find((product) => product.id === target.dataset.availability)!;
+    if (item.trackStock && (item.stockQuantity || 0) <= 0 && productUnavailable(item)) { toast('add stock before making this product available'); return; }
+    item.soldOut = !item.soldOut; await save('products', item); await refreshData(); render(); toast(item.soldOut ? 'product is unavailable' : 'product is available'); return;
+  }
   if (target.dataset.editProduct) { editingProduct = products.find((item) => item.id === target.dataset.editProduct)!; modal = 'product'; render(); return; }
   if (target.dataset.editModifier) { editingModifier = modifiers.find((item) => item.id === target.dataset.editModifier)!; modal = 'modifier'; render(); return; }
   if (target.dataset.orderStatus) { await changeOrderStatus(target.dataset.orderStatus as OrderStatus); return; }
@@ -463,6 +516,9 @@ app.addEventListener('click', async (event) => {
   if (target.dataset.editPriceList) { editingPriceList = priceLists.find((item) => item.id === target.dataset.editPriceList)!; modal = 'price-list'; render(); return; }
   if (target.dataset.duplicatePriceList) { await duplicatePriceList(target.dataset.duplicatePriceList); return; }
   if (target.dataset.archivePriceList) { await archivePriceList(target.dataset.archivePriceList); return; }
+  if (target.dataset.restoreProduct) { const item = products.find((product) => product.id === target.dataset.restoreProduct); if (item) { item.archived = false; await save('products', item); await refreshData(); render(); toast('product restored'); } return; }
+  if (target.dataset.restoreModifier) { const item = modifiers.find((modifier) => modifier.id === target.dataset.restoreModifier); if (item) { item.archived = false; await save('modifiers', item); await refreshData(); render(); toast('add-on restored'); } return; }
+  if (target.dataset.restorePriceList) { const item = priceLists.find((list) => list.id === target.dataset.restorePriceList); if (item) { item.archived = false; await save('priceLists', item); await refreshData(); render(); toast('price list restored'); } return; }
 
   switch (target.dataset.action) {
     case 'close-modal': modal = ''; render(); break;
@@ -516,6 +572,28 @@ app.addEventListener('input', (event) => {
 
 app.addEventListener('change', async (event) => {
   const input = event.target as HTMLInputElement | HTMLSelectElement;
+  if (input.hasAttribute('data-stock-tracking')) {
+    const field = document.querySelector<HTMLElement>('.stock-quantity-field');
+    const quantity = field?.querySelector<HTMLInputElement>('input');
+    const tracking = input.value === 'true';
+    field?.classList.toggle('disabled', !tracking);
+    if (quantity) quantity.disabled = !tracking;
+  }
+  if (input.getAttribute('name') === 'includedProductIds') input.closest('.price-editor-row')?.classList.toggle('excluded', !(input as HTMLInputElement).checked);
+  if (input.dataset.teamRole) {
+    const previous = businessProfiles.find((profile) => profile.id === input.dataset.teamRole)?.role;
+    input.disabled = true;
+    try {
+      await updateTeamMemberRole(input.dataset.teamRole, input.value as UserRole);
+      businessProfiles = await getBusinessProfiles();
+      render(); toast('account access updated');
+    } catch (error) {
+      if (previous) input.value = previous;
+      input.disabled = false;
+      toast(readableError(error, 'account access could not be updated'));
+    }
+    return;
+  }
   if (input.hasAttribute('data-range')) { dashboardRange = input.value; render(); }
   if (input.dataset.orderFilter === 'range') { orderRange = input.value; render(); }
   if (input.dataset.orderFilter === 'status') { orderStatus = input.value; render(); }
@@ -575,11 +653,15 @@ app.addEventListener('submit', async (event) => {
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
     if (button) button.disabled = true;
     try {
-      await createStaffAccount(String(data.get('email') || ''), String(data.get('displayName') || ''), String(data.get('temporaryPassword') || ''));
+      await createTeamAccount(String(data.get('email') || ''), String(data.get('displayName') || ''), String(data.get('temporaryPassword') || ''), data.get('role') as UserRole);
       businessProfiles = await getBusinessProfiles();
-      render(); toast('staff account created');
-    } catch (error) { if (button) button.disabled = false; toast(error instanceof Error ? error.message.toLowerCase() : 'staff account could not be created'); }
+      render(); toast('account created');
+    } catch (error) { if (button) button.disabled = false; toast(readableError(error, 'account could not be created')); }
     return;
+  }
+  if (form.id === 'device-settings-form') {
+    deviceIdentity = await updateDeviceIdentity(String(data.get('deviceName') || ''), String(data.get('devicePrefix') || ''));
+    render(); toast('ipad details saved'); return;
   }
   if (form.id === 'change-password-form') {
     const password = String(data.get('password') || '');
@@ -666,7 +748,7 @@ function addToCart() {
   const signature = `${activeProduct.id}:${selected.map((item) => item.id).sort().join(',')}`;
   const existing = cart.find((line) => line.id === signature);
   if (existing) existing.quantity += 1;
-  else cart.push({ id: signature, product: clone(activeProduct), modifiers: clone(selected), unitPrice: currentPrice(activeProduct) + selected.reduce((sum, item) => sum + item.price, 0), quantity: 1 });
+  else cart.push({ id: signature, product: clone(activeProduct), modifiers: clone(selected), unitPrice: menuUnitPrice(activeProduct, selected), quantity: 1 });
   modal = ''; render();
 }
 
@@ -723,20 +805,25 @@ async function completeSale() {
   const amount = totals();
   if (paymentMethod === 'cash' && Number(cashReceived) < amount.total) return;
   const selectedPriceList = activePriceList();
-  const order: Order = { id: uid(), number: settings.nextOrderNumber, createdAt: new Date().toISOString(), status: 'completed', paymentMethod, priceListId: selectedPriceList?.id, priceListName: selectedPriceList?.name, customerName: customerName.trim(), note: orderNote.trim(), lines: clone(cart), subtotal: amount.subtotal, discount: amount.discount, discountLabel: discount?.label || '', tax: amount.tax, taxName: settings.taxEnabled ? settings.taxName : '', total: amount.total, createdBy: currentProfile?.id, createdByName: currentProfile?.displayName, ...(paymentMethod === 'cash' ? { cashReceived: Number(cashReceived) } : {}) };
+  const order: Order = { id: uid(), number: settings.nextOrderNumber, createdAt: new Date().toISOString(), status: 'completed', paymentMethod, priceListId: selectedPriceList?.id, priceListName: selectedPriceList?.name, customerName: customerName.trim(), note: orderNote.trim(), lines: clone(cart), subtotal: amount.subtotal, discount: amount.discount, discountLabel: discount?.label || '', tax: amount.tax, taxName: settings.taxEnabled ? settings.taxName : '', total: amount.total, createdBy: currentProfile?.id, createdByName: currentProfile?.displayName, deviceId: deviceIdentity.deviceId, deviceName: deviceIdentity.name, ...(paymentMethod === 'cash' ? { cashReceived: Number(cashReceived) } : {}) };
   const savedOrder = await createOrder(order);
+  await Promise.all(order.lines.map((line) => adjustProductStock(line.product.id, -line.quantity, 'sale', order.id)));
   latestOrder = savedOrder; cart = []; discount = null; customerName = ''; orderNote = ''; cashReceived = '';
-  if (usingCloud() && navigator.onLine) await syncFromCloud();
+  if (usingCloud() && navigator.onLine) { try { await syncFromCloud(); } catch { /* queued changes remain safely on this ipad */ } }
   await refreshData(); modal = 'receipt'; render();
 }
 
 async function saveProduct(data: FormData) {
   const existing = products.find((item) => item.id === data.get('id'));
   const enteredPrice = Number(data.get('price'));
-  const item: Product = { id: existing?.id || uid(), sku: String(data.get('sku')).trim(), name: String(data.get('name')).trim(), description: String(data.get('description')).trim(), category: String(data.get('category')).trim(), price: enteredPrice, standardPrice: existing?.standardPrice || enteredPrice, image: String(data.get('image') || '/assets/DT-LOGO-001.png'), modifierIds: data.getAll('modifierIds').map(String), soldOut: existing?.soldOut || false, archived: false, createdAt: existing?.createdAt || new Date().toISOString() };
+  const trackStock = data.get('trackStock') === 'true';
+  const stockQuantity = trackStock ? Math.max(0, Number(data.get('stockQuantity')) || 0) : existing?.stockQuantity || 0;
+  const soldOut = data.get('availability') === 'unavailable' || (trackStock && stockQuantity <= 0);
+  const item: Product = { id: existing?.id || uid(), sku: String(data.get('sku')).trim(), name: String(data.get('name')).trim(), description: String(data.get('description')).trim(), category: String(data.get('category')).trim(), price: enteredPrice, standardPrice: existing?.standardPrice || enteredPrice, image: String(data.get('image') || '/assets/DT-LOGO-001.png'), modifierIds: data.getAll('modifierIds').map(String), soldOut, trackStock, stockQuantity, archived: false, createdAt: existing?.createdAt || new Date().toISOString() };
   await save('products', item);
   await Promise.all(priceLists.filter((priceList) => !priceList.archived).map(async (list) => {
     if (list.id === settings.activePriceListId || list.prices[item.id] === undefined) list.prices[item.id] = enteredPrice;
+    if (list.id === settings.activePriceListId && list.productIds && !list.productIds.includes(item.id)) list.productIds.push(item.id);
     await save('priceLists', list);
   }));
   await refreshData(); modal = ''; render(); toast(existing ? 'product updated' : 'product added');
@@ -745,7 +832,9 @@ async function saveProduct(data: FormData) {
 async function savePriceList(data: FormData) {
   const existing = priceLists.find((item) => item.id === data.get('id'));
   const prices = Object.fromEntries(products.filter((item) => !item.archived).map((product) => [product.id, Number(data.get(`price:${product.id}`)) || 0]));
-  const item: PriceList = { id: existing?.id || uid(), name: String(data.get('name')).trim(), prices, archived: false, createdAt: existing?.createdAt || new Date().toISOString() };
+  const productIds = data.getAll('includedProductIds').map(String);
+  if (!productIds.length) throw new Error('include at least one product in this price list');
+  const item: PriceList = { id: existing?.id || uid(), name: String(data.get('name')).trim(), prices, productIds, archived: false, createdAt: existing?.createdAt || new Date().toISOString() };
   await save('priceLists', item);
   if (data.get('activate') === 'on') { settings.activePriceListId = item.id; await save('settings', settings); }
   await refreshData(); modal = ''; catalogTab = 'prices'; view = 'catalog'; render(); toast(existing ? 'price list updated' : 'price list added');
@@ -753,7 +842,7 @@ async function savePriceList(data: FormData) {
 
 async function usePriceList(id: string) { settings.activePriceListId = id; await save('settings', settings); await refreshData(); modal = ''; render(); toast(`${activePriceList()?.name} is now active`); }
 async function duplicatePriceList(id: string) { const source = priceLists.find((item) => item.id === id); if (!source) return; const copy: PriceList = { ...clone(source), id: uid(), name: `${source.name} copy`, createdAt: new Date().toISOString() }; await save('priceLists', copy); await refreshData(); editingPriceList = priceLists.find((item) => item.id === copy.id)!; modal = 'price-list'; render(); }
-async function archivePriceList(id: string) { const item = priceLists.find((list) => list.id === id); if (!item || item.id === settings.activePriceListId || priceLists.filter((list) => !list.archived).length < 2) return; item.archived = true; await save('priceLists', item); await refreshData(); render(); toast('price list removed'); }
+async function archivePriceList(id: string) { const item = priceLists.find((list) => list.id === id); if (!item || item.id === settings.activePriceListId || priceLists.filter((list) => !list.archived).length < 2) return; item.archived = true; await save('priceLists', item); await refreshData(); render(); toast('price list archived'); }
 
 async function saveModifier(data: FormData) {
   const existing = modifiers.find((item) => item.id === data.get('id'));
@@ -775,7 +864,7 @@ async function changeOrderStatus(status: OrderStatus) {
 }
 
 function exportCsv() {
-  const rows = [['order number','date','status','customer','payment','items','subtotal','discount','tax','total'], ...orders.slice().sort((a,b) => a.number-b.number).map((order) => [order.number, order.createdAt, order.status, order.customerName, order.paymentMethod, order.lines.reduce((sum,line)=>sum+line.quantity,0), order.subtotal, order.discount, order.tax, order.total])];
+  const rows = [['order number','receipt reference','device','date','status','sync','customer','payment','items','subtotal','discount','tax','total'], ...orders.slice().sort((a,b) => a.number-b.number).map((order) => [order.number, orderReference(order), order.deviceName || '', order.createdAt, order.status, isPendingOrder(order) ? 'pending' : 'synced', order.customerName, order.paymentMethod, order.lines.reduce((sum,line)=>sum+line.quantity,0), order.subtotal, order.discount, order.tax, order.total])];
   const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
   download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `doubletime-sales-${dateStamp()}.csv`);
   toast('csv exported');
@@ -787,11 +876,11 @@ async function exportExcel() {
   const revenue = completed.reduce((sum, order) => sum + order.total, 0);
   const sorted = orders.slice().sort((a, b) => a.number - b.number);
   const summaryRows: (string | number)[][] = [['doubletime sales summary'], ['exported', new Date().toLocaleString('en-PH')], [], ['metric', 'value'], ['net sales', revenue], ['completed orders', completed.length], ['average order', completed.length ? revenue / completed.length : 0], ['discounts', completed.reduce((sum, order) => sum + order.discount, 0)], ['tax', completed.reduce((sum, order) => sum + order.tax, 0)]];
-  const orderRows: (string | number)[][] = [['order', 'date', 'status', 'customer', 'payment', 'price list', 'subtotal', 'discount', 'tax', 'total'], ...sorted.map((order) => [order.number, new Date(order.createdAt).toLocaleString('en-PH'), order.status, order.customerName || 'walk-in', order.paymentMethod, order.priceListName || '', order.subtotal, order.discount, order.tax, order.total])];
-  const itemRows: (string | number)[][] = [['order', 'sku', 'product', 'add-ons', 'quantity', 'unit price', 'line total']];
+  const orderRows: (string | number)[][] = [['order', 'receipt reference', 'device', 'date', 'status', 'sync', 'customer', 'payment', 'price list', 'subtotal', 'discount', 'tax', 'total'], ...sorted.map((order) => [order.number, orderReference(order), order.deviceName || '', new Date(order.createdAt).toLocaleString('en-PH'), order.status, isPendingOrder(order) ? 'pending' : 'synced', order.customerName || 'walk-in', order.paymentMethod, order.priceListName || '', order.subtotal, order.discount, order.tax, order.total])];
+  const itemRows: (string | number)[][] = [['order', 'receipt reference', 'sku', 'product', 'add-ons', 'quantity', 'unit price', 'line total']];
   sorted.forEach((order) => order.lines.forEach((line) => {
     const price = lineUnitPrice(line);
-    itemRows.push([order.number, line.product.sku, line.product.name, line.modifiers.map((item) => item.name).join(', '), line.quantity, price, price * line.quantity]);
+    itemRows.push([order.number, orderReference(order), line.product.sku, line.product.name, line.modifiers.map((item) => item.name).join(', '), line.quantity, price, price * line.quantity]);
   }));
   const workbook = createXlsx([['summary', summaryRows], ['orders', orderRows], ['order items', itemRows]]);
   const workbookBytes = new Uint8Array(workbook.byteLength);
@@ -825,7 +914,11 @@ async function installApp() {
   else toast('in safari, tap share then “add to home screen”');
 }
 
-async function refreshData() { [products, modifiers, priceLists, orders, settings] = await Promise.all([getProducts(), getModifiers(), getPriceLists(), getOrders(), getSettings()]); }
+async function refreshData() {
+  const [nextProducts, nextModifiers, nextPriceLists, nextOrders, nextSettings, pending, device] = await Promise.all([getProducts(), getModifiers(), getPriceLists(), getOrders(), getSettings(), getPendingSyncState(), getDeviceIdentity()]);
+  products = nextProducts; modifiers = nextModifiers; priceLists = nextPriceLists; orders = nextOrders; settings = nextSettings;
+  pendingSyncCount = pending.count; pendingOrderIds = new Set(pending.orderIds); deviceIdentity = device;
+}
 
 async function retry<T>(operation: () => Promise<T>, attempts = 2): Promise<T> {
   let lastError: unknown;
@@ -844,20 +937,60 @@ async function activateCloudSession() {
   if (!profile || !profile.active) throw new Error('this account does not have active doubletime access');
   currentProfile = profile;
   connectCloud(profile);
+  await cacheOfflineAccess(profile);
   if (navigator.onLine) {
+    syncPhase = 'syncing';
     try { await retry(syncFromCloud); }
     catch (error) { console.warn('cloud sync will retry when the connection settles', error); }
+    finally { syncPhase = 'online'; }
   }
   await refreshData();
   businessProfiles = profile.role === 'owner' && navigator.onLine ? await getBusinessProfiles().catch(() => []) : [];
   stopBusinessWatcher?.();
   stopBusinessWatcher = watchBusinessChanges(async () => {
-    try { await syncFromCloud(); await refreshData(); render(); } catch { /* keep the last good local copy */ }
+    if (!navigator.onLine) return;
+    try { syncPhase = 'syncing'; render(); await syncFromCloud(); await refreshData(); syncPhase = 'online'; render(); }
+    catch { syncPhase = navigator.onLine ? 'online' : 'offline'; render(); }
   });
+}
+
+async function activateOfflineSession() {
+  const access = await getOfflineAccess();
+  if (!access) return false;
+  currentProfile = access.profile;
+  connectCloud(access.profile);
+  syncPhase = 'offline';
+  await refreshData();
+  return true;
+}
+
+function renderOfflineAccessNeeded() {
+  app.innerHTML = `<div class="auth-screen"><section class="auth-card">${brandMark()}<p class="eyebrow">offline access</p><h1>connect this ipad once</h1><p class="auth-intro">this ipad needs one successful online verification before it can launch offline for the next ${OFFLINE_ACCESS_DAYS} days.</p><div class="auth-sent setup"><i data-lucide="wifi-off"></i><div><strong>your saved records are still here</strong><span>reconnect to verify the account, then offline launch will be ready.</span></div></div></section></div>`;
+  hydrateIcons();
+}
+
+async function reconnectAndSync() {
+  syncPhase = 'syncing'; render();
+  try {
+    const profile = await retry(getCurrentProfile);
+    if (!profile || !profile.active) {
+      await clearOfflineAccess();
+      currentProfile = null; connectCloud(null); renderSignIn(); return;
+    }
+    currentProfile = profile; connectCloud(profile); await cacheOfflineAccess(profile);
+    await syncFromCloud(); await refreshData();
+    businessProfiles = profile.role === 'owner' ? await getBusinessProfiles().catch(() => []) : [];
+    syncPhase = 'online'; render();
+  } catch (error) {
+    syncPhase = navigator.onLine ? 'online' : 'offline';
+    await refreshData(); render();
+    toast(readableError(error, 'sync will retry when the connection settles'));
+  }
 }
 
 async function handleSignOut() {
   stopBusinessWatcher?.(); stopBusinessWatcher = null;
+  await clearOfflineAccess();
   try { await signOut(); } catch { /* the local session is cleared below */ }
   currentProfile = null; businessProfiles = []; connectCloud(null); modal = ''; view = 'sell'; signInSentTo = '';
   renderSignIn();
@@ -867,7 +1000,7 @@ function startAuthWatcher() {
   if (authWatcherStarted || !isCloudConfigured) return;
   authWatcherStarted = true;
   watchAuth((event, session) => {
-    if (event === 'SIGNED_OUT') { currentProfile = null; connectCloud(null); renderSignIn(); }
+    if (event === 'SIGNED_OUT' && navigator.onLine) { void clearOfflineAccess(); currentProfile = null; connectCloud(null); renderSignIn(); }
     if (event === 'SIGNED_IN' && session && !currentProfile) {
       setTimeout(async () => {
         try { await activateCloudSession(); render(); }
@@ -878,8 +1011,8 @@ function startAuthWatcher() {
 }
 
 window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); deferredInstallPrompt = event; if (view === 'settings') render(); });
-window.addEventListener('online', async () => { try { if (usingCloud()) { await flushOutbox(); await syncFromCloud(); await refreshData(); } render(); } catch { render(); } });
-window.addEventListener('offline', render);
+window.addEventListener('online', async () => { if (currentProfile) await reconnectAndSync(); else await start(); });
+window.addEventListener('offline', () => { syncPhase = 'offline'; render(); });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   window.setTimeout(() => navigator.serviceWorker.register('/pos-sw.js', { scope: __POS_BASE__, updateViaCache: 'none' }).catch(() => undefined), 1200);
 });
@@ -888,7 +1021,12 @@ async function start() {
   app.innerHTML = `<div class="loading-screen">${brandMark()}<p>getting the good cups ready…</p></div>`;
   try {
     await initializeStore();
+    if ('storage' in navigator && typeof navigator.storage.persist === 'function') void navigator.storage.persist().catch(() => false);
     if (isCloudConfigured) {
+      if (!navigator.onLine) {
+        if (!await activateOfflineSession()) { renderOfflineAccessNeeded(); startAuthWatcher(); return; }
+        render(); startAuthWatcher(); return;
+      }
       const session = await getSession();
       if (!session) { renderSignIn(); startAuthWatcher(); return; }
       await activateCloudSession();

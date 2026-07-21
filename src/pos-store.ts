@@ -1,14 +1,19 @@
 import { isCloudConfigured, supabase } from './pos-auth';
-import type { Modifier, Order, OrderStatus, PosProfile, PriceList, Product, Settings } from './pos-types';
+import type { DeviceIdentity, Modifier, OfflineAccess, Order, OrderStatus, PosProfile, PriceList, Product, Settings } from './pos-types';
 
 const DB_NAME = 'doubletime-pos';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const entityStores = ['products', 'modifiers', 'orders', 'settings', 'priceLists'] as const;
-const stores = [...entityStores, 'outbox'] as const;
+const stores = [...entityStores, 'outbox', 'metadata'] as const;
 type EntityStore = (typeof entityStores)[number];
 type StoreName = (typeof stores)[number];
-type CloudOperation = 'upsert' | 'create-order';
+type CloudOperation = 'upsert' | 'create-order' | 'inventory-adjustment';
 type OutboxRecord = { id: string; storeName: EntityStore; operation: CloudOperation; value: unknown; queuedAt: string };
+type InventoryAdjustment = { id: string; productId: string; delta: number; reason: 'sale' | 'manual'; referenceId?: string; createdAt: string };
+export type PendingSyncState = { count: number; orderIds: string[] };
+
+export const OFFLINE_ACCESS_DAYS = 7;
+const OFFLINE_ACCESS_MS = OFFLINE_ACCESS_DAYS * 24 * 60 * 60 * 1000;
 
 const now = new Date().toISOString();
 const seedProducts: Product[] = [
@@ -96,8 +101,60 @@ const cloudWriteTimeout = <T>(operation: PromiseLike<T>, milliseconds = 10000) =
   );
 });
 
+function generatedDevicePrefix(deviceId: string) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let value = 0;
+  for (const character of deviceId) value = (value * 31 + character.charCodeAt(0)) >>> 0;
+  return `${alphabet[value % alphabet.length]}${alphabet[Math.floor(value / alphabet.length) % alphabet.length]}`;
+}
+
+function normalizeDevicePrefix(value: string, fallback: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3) || fallback;
+}
+
 export function connectCloud(profile: PosProfile | null) { cloudProfile = profile; }
 export function usingCloud() { return cloudActive(); }
+
+export async function cacheOfflineAccess(profile: PosProfile) {
+  const record: OfflineAccess = { id: 'offline-access', profile, verifiedAt: new Date().toISOString() };
+  await putLocal('metadata', record);
+  return record;
+}
+
+export async function getOfflineAccess() {
+  const record = await oneLocal<OfflineAccess>('metadata', 'offline-access');
+  if (!record || !record.profile.active) return null;
+  return Date.now() - new Date(record.verifiedAt).getTime() <= OFFLINE_ACCESS_MS ? record : null;
+}
+
+export async function clearOfflineAccess() { await deleteLocal('metadata', 'offline-access'); }
+
+export async function getDeviceIdentity() {
+  const existing = await oneLocal<DeviceIdentity>('metadata', 'device');
+  if (existing) return existing;
+  const fallbackId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const deviceId = globalThis.crypto?.randomUUID?.() || fallbackId;
+  const prefix = generatedDevicePrefix(deviceId);
+  const identity: DeviceIdentity = { id: 'device', deviceId, name: `ipad ${prefix.toLowerCase()}`, prefix, nextLocalOrderNumber: 1 };
+  await putLocal('metadata', identity);
+  return identity;
+}
+
+export async function updateDeviceIdentity(name: string, prefix: string) {
+  const identity = await getDeviceIdentity();
+  identity.name = name.trim() || identity.name;
+  identity.prefix = normalizeDevicePrefix(prefix, identity.prefix);
+  await putLocal('metadata', identity);
+  return identity;
+}
+
+async function reserveLocalReceiptCode() {
+  const identity = await getDeviceIdentity();
+  const number = identity.nextLocalOrderNumber;
+  identity.nextLocalOrderNumber += 1;
+  await putLocal('metadata', identity);
+  return `${identity.prefix}-${String(number).padStart(3, '0')}`;
+}
 
 async function queue(storeName: EntityStore, operation: CloudOperation, value: unknown) {
   const fallbackId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -179,13 +236,40 @@ async function createCloudOrder(order: Order) {
   return saved;
 }
 
+async function applyCloudInventoryAdjustment(adjustment: InventoryAdjustment) {
+  if (!supabase) throw new Error('supabase is not connected');
+  const { data, error } = await supabase.rpc('adjust_pos_inventory', { p_adjustment: adjustment });
+  if (error) throw error;
+  const product = data as Product;
+  await putLocal('products', product);
+  return product;
+}
+
+export async function adjustProductStock(productId: string, delta: number, reason: InventoryAdjustment['reason'], referenceId?: string) {
+  const product = await oneLocal<Product>('products', productId);
+  if (!product?.trackStock || !delta) return product;
+  product.stockQuantity = Math.max(0, (product.stockQuantity || 0) + delta);
+  product.soldOut = product.stockQuantity <= 0;
+  await putLocal('products', product);
+  const fallbackId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const adjustment: InventoryAdjustment = { id: globalThis.crypto?.randomUUID?.() || fallbackId, productId, delta, reason, referenceId, createdAt: new Date().toISOString() };
+  if (!cloudActive()) return product;
+  if (!navigator.onLine) { await queue('products', 'inventory-adjustment', adjustment); return product; }
+  try { return await cloudWriteTimeout(applyCloudInventoryAdjustment(adjustment)); }
+  catch (error) {
+    await queue('products', 'inventory-adjustment', adjustment);
+    console.warn('inventory adjustment is waiting to sync', error);
+    return product;
+  }
+}
+
 export async function createOrder(order: Order) {
   if (cloudActive() && navigator.onLine) {
     try { return await createCloudOrder(order); }
     catch (error) { if (!isOfflineFailure(error)) throw error; }
   }
   const localSettings = await getSettings();
-  const provisional = { ...order, number: localSettings.nextOrderNumber, syncStatus: 'pending' } as Order;
+  const provisional = { ...order, number: localSettings.nextOrderNumber, localReceiptCode: order.localReceiptCode || await reserveLocalReceiptCode(), syncStatus: 'pending' } as Order;
   await putLocal('orders', provisional);
   localSettings.nextOrderNumber += 1;
   await putLocal('settings', localSettings);
@@ -228,6 +312,7 @@ export async function flushOutbox() {
   for (const record of records) {
     try {
       if (record.operation === 'create-order') await createCloudOrder(record.value as Order);
+      else if (record.operation === 'inventory-adjustment') await applyCloudInventoryAdjustment(record.value as InventoryAdjustment);
       else await upsertCloud(record.storeName, record.value);
       await deleteLocal('outbox', record.id);
       synced += 1;
@@ -237,6 +322,14 @@ export async function flushOutbox() {
     }
   }
   return synced;
+}
+
+export async function getPendingSyncState(): Promise<PendingSyncState> {
+  const records = await allLocal<OutboxRecord>('outbox');
+  return {
+    count: records.length,
+    orderIds: records.filter((record) => record.operation === 'create-order').map((record) => (record.value as Order).id),
+  };
 }
 
 export async function syncFromCloud() {
@@ -269,6 +362,7 @@ export async function getSettings() { return (await oneLocal<Settings>('settings
 
 export async function initializeStore() {
   await openDatabase();
+  await getDeviceIdentity();
   if ((await getProducts()).length === 0) await Promise.all(seedProducts.map((item) => putLocal('products', item)));
   if ((await getModifiers()).length === 0) await Promise.all(seedModifiers.map((item) => putLocal('modifiers', item)));
   const savedProducts = await getProducts();
