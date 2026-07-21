@@ -1,0 +1,4 @@
+project_id = "doubletime-pos"
+
+[functions.invite-staff]
+verify_jwt = true

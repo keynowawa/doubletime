@@ -5,12 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "npm run build:website",
+    "build:website": "tsc && vite build --mode website",
+    "build:pos": "tsc && vite build --mode pos",
+    "build:all": "tsc && vite build --mode all",
     "preview": "vite preview"
   },
   "devDependencies": {
     "sharp": "^0.35.3",
     "typescript": "^5.2.2",
     "vite": "^5.2.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.8",
+    "fflate": "^0.8.2",
+    "lucide": "^1.25.0"
   }
 }
