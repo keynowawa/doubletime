@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, FunctionsHttpError } from '@supabase/supabase-js';
 import type { AuthChangeEvent, RealtimeChannel, Session, SupabaseClient } from '@supabase/supabase-js';
 import type { PosProfile, UserRole } from './pos-types';
 
@@ -15,6 +15,24 @@ export const supabase: SupabaseClient | null = isCloudConfigured
 function client() {
   if (!supabase) throw new Error('supabase is not connected');
   return supabase;
+}
+
+async function readableFunctionError(error: unknown) {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const response = error.context as Response;
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const payload = await response.json() as { error?: string; message?: string; code?: string };
+        return new Error(payload.error || payload.message || payload.code || error.message);
+      }
+      const message = await response.text();
+      if (message.trim()) return new Error(message.trim());
+    } catch {
+      // Fall back to the SDK message when the response body is unavailable.
+    }
+  }
+  return error instanceof Error ? error : new Error('account service could not be reached');
 }
 
 const redirectUrl = () => new URL(location.pathname || '/', location.origin).href;
@@ -104,7 +122,7 @@ export async function createTeamAccount(email: string, displayName: string, temp
       role,
     },
   });
-  if (error) throw error;
+  if (error) throw await readableFunctionError(error);
   if (data?.error) throw new Error(data.error);
   if (data?.role !== role) throw new Error('account role service needs updating in supabase');
   return data as { id?: string; email: string };
@@ -114,7 +132,7 @@ export async function updateTeamMemberRole(userId: string, role: UserRole) {
   const { data, error } = await client().functions.invoke('invite-staff', {
     body: { action: 'update-role', userId, role },
   });
-  if (error) throw error;
+  if (error) throw await readableFunctionError(error);
   if (data?.error) throw new Error(data.error);
   if (data?.role !== role) throw new Error('account role service needs updating in supabase');
   return data as { id: string; role: UserRole };
