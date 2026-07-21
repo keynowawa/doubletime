@@ -27,7 +27,7 @@ In Supabase, open **Authentication → Users → Add user → Send invitation** 
 
 `doubletime.ph@gmail.com`
 
-The database automatically assigns this email the owner role. The owner can sell normally and can also access reports, exports, products, pricing, tax, the manager PIN, and staff invitations.
+The database automatically assigns this email the owner role. The owner can sell normally and can also access reports, exports, products, pricing, tax, the manager PIN, and staff accounts. After the first magic-link sign-in, use **Account → Account password** to set the owner's password.
 
 ## 3. Connect local development
 
@@ -63,9 +63,9 @@ The POS build opens at the root of its own Vercel domain. After testing, connect
 ## 6. Staff and iPad access
 
 1. The owner signs in and opens **Settings → Team access**.
-2. The owner enters a staff name and email and sends an invitation.
-3. Staff use the emailed link to activate their account.
-4. On each iPad, open the POS URL in Safari and sign in with that person's email.
-5. Use **Share → Add to Home Screen**.
+2. The owner enters a staff name, email, and temporary password to create the account without sending email.
+3. Staff sign in with that email and temporary password, then change it under **Account → Account password**.
+4. On each iPad, open the POS URL in Safari and sign in with that person's email and password.
+5. Use **Share → Add to Home Screen**. The session stays on that iPad until the user signs out or clears its browser data.
 
 Every authorized iPad reads the same Supabase records. Orders created online receive a final sequential number from the database. Orders created while offline remain queued on that iPad and receive their final number when the connection returns.

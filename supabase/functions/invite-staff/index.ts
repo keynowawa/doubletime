@@ -5,7 +5,7 @@ import { withSupabase } from "jsr:@supabase/server@^1";
 interface InviteStaffPayload {
   email?: string;
   displayName?: string;
-  redirectTo?: string;
+  temporaryPassword?: string;
 }
 
 export default {
@@ -27,14 +27,20 @@ export default {
       const body = (await request.json()) as InviteStaffPayload;
       const email = body.email?.trim().toLowerCase();
       if (!email || !email.includes("@")) throw new Error("enter a valid email");
+      if (!body.temporaryPassword || body.temporaryPassword.length < 8) {
+        throw new Error("temporary password must be at least 8 characters");
+      }
 
-      const { data, error } = await ctx.supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-        data: {
+      const { data, error } = await ctx.supabaseAdmin.auth.admin.createUser({
+        email,
+        password: body.temporaryPassword,
+        email_confirm: true,
+        user_metadata: {
           business_id: profile.business_id,
           role: "staff",
           full_name: body.displayName?.trim() || email.split("@")[0],
+          must_change_password: true,
         },
-        redirectTo: body.redirectTo,
       });
 
       if (error) throw error;

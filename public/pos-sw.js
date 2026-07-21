@@ -1,4 +1,4 @@
-const CACHE_NAME = 'doubletime-pos-v5';
+const CACHE_NAME = 'doubletime-pos-v6';
 const APP_SHELL = [
   '/pos/',
   '/pos-manifest.webmanifest',

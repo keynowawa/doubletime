@@ -1,7 +1,7 @@
 import './pos.css';
 import { strToU8, zipSync } from 'fflate';
-import { Archive, Banknote, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
-import { getBusinessProfiles, getCurrentProfile, getSession, inviteStaff, isCloudConfigured, sendSignInLink, signOut, watchAuth, watchBusinessChanges } from './pos-auth';
+import { Archive, Banknote, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
+import { changePassword, createStaffAccount, getBusinessProfiles, getCurrentProfile, getSession, isCloudConfigured, sendSignInLink, signInWithPassword, signOut, watchAuth, watchBusinessChanges } from './pos-auth';
 import { changeOrderStatus as persistOrderStatus, connectCloud, createOrder, exportBackup, flushOutbox, getModifiers, getOrders, getPriceLists, getProducts, getSettings, importBackup, initializeStore, save, syncFromCloud, updateManagerPin, usingCloud } from './pos-store';
 import type { CartLine, Discount, Modifier, Order, OrderStatus, PaymentMethod, PosProfile, PriceList, Product, Settings } from './pos-types';
 
@@ -87,7 +87,7 @@ function brandMark() {
 }
 
 function hydrateIcons() {
-  createIcons({ icons: { Archive, Banknote, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings: SettingsIcon, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X }, attrs: { 'stroke-width': '1.8', 'aria-hidden': 'true' } });
+  createIcons({ icons: { Archive, Banknote, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings: SettingsIcon, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X }, attrs: { 'stroke-width': '1.8', 'aria-hidden': 'true' } });
 }
 
 function render() {
@@ -264,7 +264,7 @@ function renderCatalog() {
 
 function renderSettings() {
   const availablePriceLists = priceLists.filter((item) => !item.archived);
-  const teamCard = isCloudConfigured && currentProfile?.role === 'owner' ? `<section class="settings-card panel team-card"><div class="settings-title"><span><i data-lucide="users-round"></i></span><div><h2>team access</h2><p>invite staff to use the same shared pos.</p></div></div><form id="invite-staff-form"><div class="two-fields"><label><span>staff name</span><input name="displayName" placeholder="e.g. sam" required></label><label><span>email</span><input name="email" type="email" placeholder="name@example.com" required></label></div><button class="secondary-button wide invite-button" type="submit"><i data-lucide="mail"></i><span>send staff invite</span></button></form><div class="team-list">${businessProfiles.map((profile) => `<div><span class="team-avatar">${esc((profile.displayName || profile.email).slice(0, 1).toLowerCase())}</span><span><strong>${esc(profile.displayName || profile.email)}</strong><small>${esc(profile.email)}</small></span><em class="team-role">${profile.role}</em></div>`).join('') || '<p>your team will appear here.</p>'}</div></section>` : '';
+  const teamCard = isCloudConfigured && currentProfile?.role === 'owner' ? `<section class="settings-card panel team-card"><div class="settings-title"><span><i data-lucide="users-round"></i></span><div><h2>team access</h2><p>create staff access without waiting for email.</p></div></div><form id="invite-staff-form"><div class="team-create-fields"><label><span>staff name</span><input name="displayName" autocomplete="name" placeholder="e.g. sam" required></label><label><span>email</span><input name="email" type="email" autocomplete="email" placeholder="name@example.com" required></label><label class="full"><span>temporary password</span><input name="temporaryPassword" type="password" autocomplete="new-password" minlength="8" placeholder="at least 8 characters" required></label></div><p class="team-helper">share this password privately. staff can change it from account after signing in.</p><button class="secondary-button wide invite-button" type="submit"><i data-lucide="key-round"></i><span>create staff account</span></button></form><div class="team-list">${businessProfiles.map((profile) => `<div><span class="team-avatar">${esc((profile.displayName || profile.email).slice(0, 1).toLowerCase())}</span><span><strong>${esc(profile.displayName || profile.email)}</strong><small>${esc(profile.email)}</small></span><em class="team-role">${profile.role}</em></div>`).join('') || '<p>your team will appear here.</p>'}</div></section>` : '';
   return `<div class="page settings-page">
     ${pageHeader('settings', 'the small things that keep service smooth.', '')}
     <div class="settings-grid">
@@ -302,7 +302,10 @@ function rangeOptions() { return [['today','today'],['7days','last 7 days'],['30
 function rangeLabel() { return dashboardRange === 'today' ? 'today, by time of day' : dashboardRange === '7days' ? 'the last seven days' : dashboardRange === '30days' ? 'the last thirty days' : 'all recorded sales'; }
 
 function renderSignIn() {
-  app.innerHTML = `<div class="auth-screen"><section class="auth-card">${brandMark()}<p class="eyebrow">your daily reward.</p><h1>sign in to doubletime</h1><p class="auth-intro">products, orders, and reports stay shared across every authorized ipad.</p>${signInSentTo ? `<div class="auth-sent"><i data-lucide="mail"></i><div><strong>check your email</strong><span>we sent a private sign-in link to ${esc(signInSentTo)}.</span></div></div><button class="secondary-button wide" data-action="change-sign-in-email">use another email</button>` : `<form id="sign-in-form"><label><span>account email</span><input name="email" type="email" autocomplete="email" placeholder="doubletime.ph@gmail.com" required autofocus></label><button class="modal-primary" type="submit"><span>email me a sign-in link</span><i data-lucide="mail"></i></button></form>`}<small class="auth-footnote">access is invite-only. staff accounts are created by the owner.</small></section></div><div class="toast" id="toast" role="status"></div>`;
+  const access = signInSentTo
+    ? `<div class="auth-sent"><i data-lucide="mail"></i><div><strong>check your email</strong><span>we sent a private sign-in link to ${esc(signInSentTo)}.</span></div></div><button class="secondary-button wide" data-action="change-sign-in-email">back to password sign in</button>`
+    : `<form id="sign-in-form"><label><span>account email</span><input id="sign-in-email" name="email" type="email" autocomplete="email" placeholder="doubletime.ph@gmail.com" required autofocus></label><label><span>password</span><input name="password" type="password" autocomplete="current-password" minlength="8" placeholder="your account password" required></label><button class="modal-primary" type="submit"><span>sign in</span><i data-lucide="key-round"></i></button><button class="auth-link-button" type="button" data-action="email-sign-in-link"><i data-lucide="mail"></i><span>email me a sign-in link instead</span></button></form>`;
+  app.innerHTML = `<div class="auth-screen"><section class="auth-card">${brandMark()}<p class="eyebrow">your daily reward.</p><h1>sign in to doubletime</h1><p class="auth-intro">products, orders, and reports stay shared across every authorized ipad.</p>${access}<small class="auth-footnote">access is invite-only. each owner and staff member uses their own account.</small></section></div><div class="toast" id="toast" role="status"></div>`;
   hydrateIcons();
 }
 
@@ -313,7 +316,8 @@ function renderCloudSetup() {
 
 function renderAccountModal() {
   const cloudCopy = usingCloud() ? 'synced with the doubletime cloud database' : 'local preview only · not shared with other devices';
-  return `<div class="modal-layer"><section class="modal-card compact account-card">${modalHead('account', 'the person currently using this ipad.')}<div class="account-profile"><span>${profileInitials()}</span><div><strong>${esc(currentProfile?.displayName || 'local preview')}</strong><small>${esc(currentProfile?.email || 'supabase is not connected yet')}</small></div><em>${currentProfile?.role || 'local'}</em></div><div class="sync-note ${usingCloud() ? '' : 'local'}"><i data-lucide="${usingCloud() ? 'cloud' : 'wifi-off'}"></i><span>${cloudCopy}</span></div>${currentProfile ? '<button class="danger-button account-signout" data-action="sign-out"><i data-lucide="log-out"></i><span>sign out on this ipad</span></button>' : '<p class="local-account-note">add the Supabase project details to enable owner and staff sign-in.</p>'}</section></div>`;
+  const access = currentProfile ? `<section class="account-password"><div><strong>account password</strong><small>set or change the password used on your devices.</small></div><form id="change-password-form"><label><span>new password</span><input name="password" type="password" autocomplete="new-password" minlength="8" placeholder="at least 8 characters" required></label><label><span>confirm password</span><input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" placeholder="type it again" required></label><button class="secondary-button wide" type="submit"><i data-lucide="key-round"></i><span>save password</span></button></form></section><button class="danger-button account-signout" data-action="sign-out"><i data-lucide="log-out"></i><span>sign out on this ipad</span></button>` : '<p class="local-account-note">add the Supabase project details to enable owner and staff sign-in.</p>';
+  return `<div class="modal-layer"><section class="modal-card compact account-card">${modalHead('account', 'the person currently using this ipad.')}<div class="account-profile"><span>${profileInitials()}</span><div><strong>${esc(currentProfile?.displayName || 'local preview')}</strong><small>${esc(currentProfile?.email || 'supabase is not connected yet')}</small></div><em>${currentProfile?.role || 'local'}</em></div><div class="sync-note ${usingCloud() ? '' : 'local'}"><i data-lucide="${usingCloud() ? 'cloud' : 'wifi-off'}"></i><span>${cloudCopy}</span></div>${access}</section></div>`;
 }
 
 function renderModal() {
@@ -437,6 +441,15 @@ app.addEventListener('click', async (event) => {
     case 'close-modal': modal = ''; render(); break;
     case 'open-account': modal = 'account'; render(); break;
     case 'change-sign-in-email': signInSentTo = ''; renderSignIn(); break;
+    case 'email-sign-in-link': {
+      const emailInput = document.querySelector<HTMLInputElement>('#sign-in-email');
+      if (!emailInput?.reportValidity()) break;
+      const button = target as HTMLButtonElement;
+      button.disabled = true;
+      try { await sendSignInLink(emailInput.value); signInSentTo = emailInput.value.trim().toLowerCase(); renderSignIn(); }
+      catch (error) { button.disabled = false; toast(error instanceof Error ? error.message.toLowerCase() : 'sign-in link could not be sent'); }
+      break;
+    }
     case 'continue-local-preview': localPreviewEnabled = true; sessionStorage.setItem('doubletime-local-preview', 'true'); await refreshData(); render(); break;
     case 'sign-out': await handleSignOut(); break;
     case 'clear-cart': cart = []; discount = null; customerName = ''; orderNote = ''; render(); break;
@@ -524,20 +537,32 @@ app.addEventListener('submit', async (event) => {
   const data = new FormData(form);
   if (form.id === 'sign-in-form') {
     const email = String(data.get('email') || '').trim().toLowerCase();
+    const password = String(data.get('password') || '');
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
     if (button) button.disabled = true;
-    try { await sendSignInLink(email); signInSentTo = email; renderSignIn(); }
-    catch (error) { if (button) button.disabled = false; toast(error instanceof Error ? error.message.toLowerCase() : 'sign-in link could not be sent'); }
+    try { await signInWithPassword(email, password); }
+    catch (error) { if (button) button.disabled = false; toast(error instanceof Error ? error.message.toLowerCase() : 'sign in failed'); }
     return;
   }
   if (form.id === 'invite-staff-form') {
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
     if (button) button.disabled = true;
     try {
-      await inviteStaff(String(data.get('email') || ''), String(data.get('displayName') || ''));
+      await createStaffAccount(String(data.get('email') || ''), String(data.get('displayName') || ''), String(data.get('temporaryPassword') || ''));
       businessProfiles = await getBusinessProfiles();
-      render(); toast('staff invitation sent');
-    } catch (error) { if (button) button.disabled = false; toast(error instanceof Error ? error.message.toLowerCase() : 'invite could not be sent'); }
+      render(); toast('staff account created');
+    } catch (error) { if (button) button.disabled = false; toast(error instanceof Error ? error.message.toLowerCase() : 'staff account could not be created'); }
+    return;
+  }
+  if (form.id === 'change-password-form') {
+    const password = String(data.get('password') || '');
+    const confirmation = String(data.get('confirmPassword') || '');
+    if (password.length < 8) { toast('password must be at least 8 characters'); return; }
+    if (password !== confirmation) { toast('passwords do not match'); return; }
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (button) button.disabled = true;
+    try { await changePassword(password); form.reset(); if (button) button.disabled = false; toast('password updated'); }
+    catch (error) { if (button) button.disabled = false; toast(error instanceof Error ? error.message.toLowerCase() : 'password could not be updated'); }
     return;
   }
   if (form.id === 'discount-form') {

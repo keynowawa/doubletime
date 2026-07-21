@@ -34,6 +34,22 @@ export async function sendSignInLink(email: string) {
   if (error) throw error;
 }
 
+export async function signInWithPassword(email: string, password: string) {
+  const { error } = await client().auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+  if (error) throw error;
+}
+
+export async function changePassword(password: string) {
+  const { error } = await client().auth.updateUser({
+    password,
+    data: { must_change_password: false },
+  });
+  if (error) throw error;
+}
+
 export async function signOut() {
   const { error } = await client().auth.signOut();
   if (error) throw error;
@@ -77,9 +93,13 @@ export async function getBusinessProfiles(): Promise<PosProfile[]> {
   } as PosProfile));
 }
 
-export async function inviteStaff(email: string, displayName: string) {
+export async function createStaffAccount(email: string, displayName: string, temporaryPassword: string) {
   const { data, error } = await client().functions.invoke('invite-staff', {
-    body: { email: email.trim().toLowerCase(), displayName: displayName.trim(), redirectTo: redirectUrl() },
+    body: {
+      email: email.trim().toLowerCase(),
+      displayName: displayName.trim(),
+      temporaryPassword,
+    },
   });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
