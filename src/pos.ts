@@ -393,13 +393,13 @@ function renderProductModal() {
       <span class="image-upload-copy"><strong>${image ? 'replace photo' : 'choose a photo'}</strong><small>tap to open photos, or drag an image here</small></span>
     </label></div>
     <div class="field-heading"><span>available add-ons</span><small>shown when this product is tapped</small></div><div class="checkbox-grid">${modifiers.filter((modifier) => !modifier.archived).map((modifier) => `<label><input type="checkbox" name="modifierIds" value="${modifier.id}" ${item?.modifierIds.includes(modifier.id) ? 'checked' : ''}><i>✓</i><span>${esc(modifier.name)}</span></label>`).join('')}</div>
-    <div class="modal-split">${item ? '<button type="button" class="danger-button" data-action="archive-product"><i data-lucide="archive"></i><span>archive product</span></button>' : '<span></span>'}<button class="modal-primary fit" type="submit">save product</button></div>
+    <div class="modal-split">${item ? '<button type="button" class="danger-button" data-action="archive-product"><i data-lucide="archive"></i><span>archive product</span></button>' : '<span></span>'}<button class="modal-primary fit" type="button" data-editor-save="product">save product</button></div>
   </form></div>`;
 }
 
 function renderAddonModal() {
   const item = editingModifier;
-  return `<div class="modal-layer"><form class="modal-card compact" id="modifier-form">${modalHead(item ? 'edit add-on' : 'add an add-on', 'keep extras simple and quick to tap.')}<input type="hidden" name="id" value="${esc(item?.id || '')}"><label><span>add-on name</span><input name="name" value="${esc(item?.name || '')}" placeholder="e.g. oat milk" required></label><div class="two-fields"><label><span>sku</span><input name="sku" value="${esc(item?.sku || '')}" placeholder="e.g. DT-ADD-OAT" required></label><label><span>price</span><input name="price" type="number" min="0" step="0.01" value="${item?.price ?? ''}" placeholder="0.00" required></label></div><div class="modal-split">${item ? '<button type="button" class="danger-button" data-action="archive-modifier"><i data-lucide="archive"></i><span>archive add-on</span></button>' : '<span></span>'}<button class="modal-primary fit" type="submit">save add-on</button></div></form></div>`;
+  return `<div class="modal-layer"><form class="modal-card compact" id="modifier-form">${modalHead(item ? 'edit add-on' : 'add an add-on', 'keep extras simple and quick to tap.')}<input type="hidden" name="id" value="${esc(item?.id || '')}"><label><span>add-on name</span><input name="name" value="${esc(item?.name || '')}" placeholder="e.g. oat milk" required></label><div class="two-fields"><label><span>sku</span><input name="sku" value="${esc(item?.sku || '')}" placeholder="e.g. DT-ADD-OAT" required></label><label><span>price</span><input name="price" type="number" min="0" step="0.01" value="${item?.price ?? ''}" placeholder="0.00" required></label></div><div class="modal-split">${item ? '<button type="button" class="danger-button" data-action="archive-modifier"><i data-lucide="archive"></i><span>archive add-on</span></button>' : '<span></span>'}<button class="modal-primary fit" type="button" data-editor-save="modifier">save add-on</button></div></form></div>`;
 }
 
 function renderPricePickerModal() {
@@ -410,7 +410,7 @@ function renderPricePickerModal() {
 function renderPriceListModal() {
   const source = editingPriceList || activePriceList();
   const availableProducts = products.filter((item) => !item.archived);
-  return `<div class="modal-layer"><form class="modal-card price-editor" id="price-list-form">${modalHead(editingPriceList ? 'edit price list' : 'new price list', 'one menu, one price for every drink.')}<input type="hidden" name="id" value="${esc(editingPriceList?.id || '')}"><label><span>price list name</span><input name="name" value="${esc(editingPriceList?.name || '')}" placeholder="e.g. porsche & pilates" required autofocus></label><div class="field-heading"><span>product prices</span><small>changes apply when this list is active</small></div><div class="price-editor-list">${availableProducts.map((product) => `<label><span class="price-product"><img src="${esc(product.image)}" alt=""><span><strong>${esc(product.name)}</strong><small>${esc(product.sku)}</small></span></span><span class="price-input"><b>₱</b><input name="price:${product.id}" type="number" min="0" step="0.01" value="${source?.prices[product.id] ?? product.price}" placeholder="0.00" required></span></label>`).join('')}</div><label class="switch-row activate-list"><span><strong>use after saving</strong><small>switch the selling screen to this list</small></span><input type="checkbox" name="activate" ${!editingPriceList ? 'checked' : ''}><i></i></label><button class="modal-primary" type="submit"><span>save price list</span><i data-lucide="check"></i></button></form></div>`;
+  return `<div class="modal-layer"><form class="modal-card price-editor" id="price-list-form">${modalHead(editingPriceList ? 'edit price list' : 'new price list', 'one menu, one price for every drink.')}<input type="hidden" name="id" value="${esc(editingPriceList?.id || '')}"><label><span>price list name</span><input name="name" value="${esc(editingPriceList?.name || '')}" placeholder="e.g. porsche & pilates" required autofocus></label><div class="field-heading"><span>product prices</span><small>changes apply when this list is active</small></div><div class="price-editor-list">${availableProducts.map((product) => `<label><span class="price-product"><img src="${esc(product.image)}" alt=""><span><strong>${esc(product.name)}</strong><small>${esc(product.sku)}</small></span></span><span class="price-input"><b>₱</b><input name="price:${product.id}" type="number" min="0" step="0.01" value="${source?.prices[product.id] ?? product.price}" placeholder="0.00" required></span></label>`).join('')}</div><label class="switch-row activate-list"><span><strong>use after saving</strong><small>switch the selling screen to this list</small></span><input type="checkbox" name="activate" ${!editingPriceList ? 'checked' : ''}><i></i></label><button class="modal-primary" type="button" data-editor-save="price-list"><span>save price list</span><i data-lucide="check"></i></button></form></div>`;
 }
 
 function renderOrderModal(order: Order) {
@@ -420,19 +420,12 @@ function renderOrderModal(order: Order) {
 const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sold-out],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list]';
 const catalogTouchSelector = '[data-action="new-product"],[data-action="new-modifier"],[data-action="new-price-list"],[data-catalog-tab],[data-edit-product],[data-edit-modifier],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list]';
 
-function requestFormSubmit(button: HTMLButtonElement) {
-  const form = button.form;
-  if (!form || button.disabled || !form.reportValidity()) return;
-  if (typeof form.requestSubmit === 'function') form.requestSubmit(button);
-  else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-}
-
 app.addEventListener('touchend', (event) => {
   if (!(event.target instanceof Element)) return;
-  const submitButton = event.target.closest<HTMLButtonElement>('button[type="submit"]');
-  if (submitButton?.form) {
+  const editorButton = event.target.closest<HTMLButtonElement>('[data-editor-save]');
+  if (editorButton) {
     event.preventDefault();
-    requestFormSubmit(submitButton);
+    void saveEditorFromButton(editorButton);
     return;
   }
   const target = event.target.closest<HTMLElement>(catalogTouchSelector);
@@ -443,10 +436,10 @@ app.addEventListener('touchend', (event) => {
 
 app.addEventListener('click', async (event) => {
   if (!(event.target instanceof Element)) return;
-  const submitButton = event.target.closest<HTMLButtonElement>('button[type="submit"]');
-  if (submitButton?.form) {
+  const editorButton = event.target.closest<HTMLButtonElement>('[data-editor-save]');
+  if (editorButton) {
     event.preventDefault();
-    requestFormSubmit(submitButton);
+    await saveEditorFromButton(editorButton);
     return;
   }
   const target = event.target.closest<HTMLElement>(interactiveSelector);
@@ -603,9 +596,11 @@ app.addEventListener('submit', async (event) => {
     discount = { type: data.get('type') as Discount['type'], value: Number(data.get('value')), label: String(data.get('label') || 'discount') };
     modal = ''; render(); return;
   }
-  if (form.id === 'product-form') { await runEditorSave(form, () => saveProduct(data), 'product could not be saved'); return; }
-  if (form.id === 'modifier-form') { await runEditorSave(form, () => saveModifier(data), 'add-on could not be saved'); return; }
-  if (form.id === 'price-list-form') { await runEditorSave(form, () => savePriceList(data), 'price list could not be saved'); return; }
+  if (form.id === 'product-form' || form.id === 'modifier-form' || form.id === 'price-list-form') {
+    const button = form.querySelector<HTMLButtonElement>('[data-editor-save]');
+    if (button) await saveEditorFromButton(button);
+    return;
+  }
   if (form.id === 'business-settings') {
     settings.activePriceListId = String(data.get('activePriceListId'));
     settings.taxEnabled = data.get('taxEnabled') === 'on';
@@ -620,20 +615,36 @@ function readableError(error: unknown, fallback: string) {
   return fallback;
 }
 
-async function runEditorSave(form: HTMLFormElement, operation: () => Promise<void>, fallback: string) {
-  const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+async function saveEditorFromButton(button: HTMLButtonElement) {
+  const form = button.form;
+  if (!form || button.disabled) return;
+  form.querySelector('.form-save-error')?.remove();
+  if (!form.checkValidity()) {
+    const alert = document.createElement('p');
+    alert.className = 'form-save-error';
+    alert.setAttribute('role', 'alert');
+    alert.textContent = 'complete the highlighted fields before saving';
+    button.insertAdjacentElement('beforebegin', alert);
+    form.reportValidity();
+    return;
+  }
+  const data = new FormData(form);
+  if (button.dataset.editorSave === 'product') return runEditorSave(form, button, () => saveProduct(data), 'product could not be saved');
+  if (button.dataset.editorSave === 'modifier') return runEditorSave(form, button, () => saveModifier(data), 'add-on could not be saved');
+  return runEditorSave(form, button, () => savePriceList(data), 'price list could not be saved');
+}
+
+async function runEditorSave(form: HTMLFormElement, button: HTMLButtonElement, operation: () => Promise<void>, fallback: string) {
   const originalMarkup = button?.innerHTML || '';
   form.querySelector('.form-save-error')?.remove();
-  if (button) {
-    button.disabled = true;
-    button.setAttribute('aria-busy', 'true');
-    button.textContent = 'saving…';
-  }
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  button.textContent = 'saving…';
   try {
     await operation();
   } catch (error) {
     console.error(fallback, error);
-    if (button && button.isConnected) {
+    if (button.isConnected) {
       button.disabled = false;
       button.removeAttribute('aria-busy');
       button.innerHTML = originalMarkup;
