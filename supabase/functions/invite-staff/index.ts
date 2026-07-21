@@ -14,7 +14,7 @@ interface TeamAccountPayload {
 export default {
   fetch: withSupabase({ auth: "user" }, async (request, ctx) => {
     try {
-      const userId = ctx.userClaims?.sub;
+      const userId = ctx.userClaims?.id || ctx.jwtClaims?.sub;
       if (!userId) throw new Error("sign in required");
 
       const { data: profile, error: profileError } = await ctx.supabase
