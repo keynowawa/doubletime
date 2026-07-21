@@ -3,12 +3,13 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "jsr:@supabase/server@^1";
 
 interface TeamAccountPayload {
-  action?: "create" | "update-role";
+  action?: "create" | "update-role" | "set-active" | "reset-password";
   email?: string;
   displayName?: string;
   temporaryPassword?: string;
   role?: "owner" | "staff";
   userId?: string;
+  active?: boolean;
 }
 
 export default {
@@ -30,17 +31,44 @@ export default {
       const body = (await request.json()) as TeamAccountPayload;
       const role = body.role === "owner" ? "owner" : "staff";
 
-      if (body.action === "update-role") {
+      if (body.action === "update-role" || body.action === "set-active" || body.action === "reset-password") {
         if (!body.userId) throw new Error("account is required");
-        if (body.userId === userId) throw new Error("you cannot change your own owner role");
+        if (body.userId === userId) throw new Error("manage your own access from the account menu");
 
         const { data: target, error: targetError } = await ctx.supabaseAdmin
           .from("profiles")
-          .select("id, business_id")
+          .select("id, business_id, active")
           .eq("id", body.userId)
           .single();
         if (targetError || !target || target.business_id !== profile.business_id) {
           throw new Error("account not found");
+        }
+
+        if (body.action === "reset-password") {
+          if (!body.temporaryPassword || body.temporaryPassword.length < 8) {
+            throw new Error("temporary password must be at least 8 characters");
+          }
+          const { error: passwordError } = await ctx.supabaseAdmin.auth.admin.updateUserById(body.userId, {
+            password: body.temporaryPassword,
+            email_confirm: true,
+            user_metadata: { must_change_password: true },
+          });
+          if (passwordError) throw passwordError;
+          return Response.json({ id: body.userId, passwordReset: true });
+        }
+
+        if (body.action === "set-active") {
+          const active = body.active === true;
+          const { error: authAccessError } = await ctx.supabaseAdmin.auth.admin.updateUserById(body.userId, {
+            ban_duration: active ? "none" : "876000h",
+          });
+          if (authAccessError) throw authAccessError;
+          const { error: accessError } = await ctx.supabaseAdmin
+            .from("profiles")
+            .update({ active })
+            .eq("id", body.userId);
+          if (accessError) throw accessError;
+          return Response.json({ id: body.userId, active });
         }
 
         const { error: updateError } = await ctx.supabaseAdmin
@@ -48,7 +76,8 @@ export default {
           .update({ role })
           .eq("id", body.userId);
         if (updateError) throw updateError;
-        await ctx.supabaseAdmin.auth.admin.updateUserById(body.userId, { user_metadata: { role } });
+        const { error: authUpdateError } = await ctx.supabaseAdmin.auth.admin.updateUserById(body.userId, { user_metadata: { role } });
+        if (authUpdateError) throw authUpdateError;
         return Response.json({ id: body.userId, role });
       }
 

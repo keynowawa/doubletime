@@ -1,12 +1,12 @@
 import './pos.css';
 import { strToU8, zipSync } from 'fflate';
 import { Archive, Banknote, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
-import { changePassword, createTeamAccount, getBusinessProfiles, getCurrentProfile, getSession, isCloudConfigured, sendSignInLink, signInWithPassword, signOut, updateTeamMemberRole, watchAuth, watchBusinessChanges } from './pos-auth';
+import { changePassword, createTeamAccount, getBusinessProfiles, getCurrentProfile, getSession, isCloudConfigured, resetTeamMemberPassword, sendSignInLink, signInWithPassword, signOut, updateTeamMemberActive, updateTeamMemberRole, watchAuth, watchBusinessChanges } from './pos-auth';
 import { OFFLINE_ACCESS_DAYS, adjustProductStock, cacheOfflineAccess, changeOrderStatus as persistOrderStatus, clearOfflineAccess, connectCloud, createOrder, exportBackup, getDeviceIdentity, getModifiers, getOfflineAccess, getOrders, getPendingSyncState, getPriceLists, getProducts, getSettings, importBackup, initializeStore, removeCatalogItem, save, syncFromCloud, updateDeviceIdentity, updateManagerPin, usingCloud } from './pos-store';
 import type { CartLine, DeviceIdentity, Discount, Modifier, Order, OrderStatus, PaymentMethod, PosProfile, PriceList, Product, Settings, UserRole } from './pos-types';
 
 type View = 'sell' | 'dashboard' | 'orders' | 'catalog' | 'settings';
-type Modal = '' | 'modifiers' | 'discount' | 'payment' | 'receipt' | 'product' | 'modifier' | 'order' | 'price-list' | 'price-picker' | 'account' | 'delete-archive';
+type Modal = '' | 'modifiers' | 'discount' | 'payment' | 'receipt' | 'product' | 'modifier' | 'order' | 'price-list' | 'price-picker' | 'account' | 'delete-archive' | 'team-password';
 type ArchiveKind = 'product' | 'modifier' | 'priceList';
 type ArchiveDeleteTarget = { kind: ArchiveKind; id: string; name: string };
 
@@ -55,6 +55,7 @@ let pendingOrderIds = new Set<string>();
 let syncPhase: 'online' | 'offline' | 'syncing' = navigator.onLine ? 'online' : 'offline';
 let sellCategory = '';
 let archiveDeleteTarget: ArchiveDeleteTarget | null = null;
+let teamPasswordTarget: PosProfile | null = null;
 
 const paymentMethods: { id: PaymentMethod; label: string; note: string; icon: string }[] = [
   { id: 'cash', label: 'cash', note: 'calculate change', icon: 'banknote' },
@@ -308,7 +309,8 @@ function renderCatalog() {
 
 function renderSettings() {
   const availablePriceLists = priceLists.filter((item) => !item.archived);
-  const teamCard = isCloudConfigured && currentProfile?.role === 'owner' ? `<section class="settings-card panel team-card"><div class="settings-title"><span><i data-lucide="users-round"></i></span><div><h2>team access</h2><p>create accounts and choose who can manage the business.</p></div></div><form id="invite-staff-form"><div class="team-create-fields"><label><span>name</span><input name="displayName" autocomplete="name" placeholder="e.g. sam" required></label><label><span>email</span><input name="email" type="email" autocomplete="email" placeholder="name@example.com" required></label><label><span>account type</span><select name="role"><option value="staff">staff · sell and view orders</option><option value="owner">owner · full access</option></select></label><label><span>temporary password</span><input name="temporaryPassword" type="password" autocomplete="new-password" minlength="8" placeholder="at least 8 characters" required></label></div><p class="team-helper">only give owner access to trusted people. every person should use their own account.</p><button class="secondary-button wide invite-button" type="submit" ${navigator.onLine ? '' : 'disabled'}><i data-lucide="key-round"></i><span>${navigator.onLine ? 'create account' : 'internet required to create accounts'}</span></button></form><div class="team-list">${businessProfiles.map((profile) => `<div><span class="team-avatar">${esc((profile.displayName || profile.email).slice(0, 1).toLowerCase())}</span><span><strong>${esc(profile.displayName || profile.email)}</strong><small>${esc(profile.email)}${profile.id === currentProfile?.id ? ' · you' : ''}</small></span><label class="team-role-control"><span class="visually-hidden">account type</span><select data-team-role="${profile.id}" ${profile.id === currentProfile?.id || !navigator.onLine ? 'disabled' : ''}><option value="staff" ${profile.role === 'staff' ? 'selected' : ''}>staff</option><option value="owner" ${profile.role === 'owner' ? 'selected' : ''}>owner</option></select></label></div>`).join('') || '<p>your team will appear here.</p>'}</div></section>` : '';
+  const teamRows = businessProfiles.map((profile) => `<div class="${profile.active ? '' : 'inactive'}"><span class="team-avatar">${esc((profile.displayName || profile.email).slice(0, 1).toLowerCase())}</span><span><strong>${esc(profile.displayName || profile.email)}</strong><small>${esc(profile.email)}${profile.id === currentProfile?.id ? ' · you' : ''} · ${profile.active ? 'active' : 'access revoked'}</small></span><label class="team-role-control"><span class="visually-hidden">account type</span><select data-team-role="${profile.id}" ${profile.id === currentProfile?.id || !navigator.onLine ? 'disabled' : ''}><option value="staff" ${profile.role === 'staff' ? 'selected' : ''}>staff</option><option value="owner" ${profile.role === 'owner' ? 'selected' : ''}>owner</option></select></label>${profile.id === currentProfile?.id ? '' : `<div class="team-account-actions"><button type="button" data-team-password="${profile.id}" ${navigator.onLine ? '' : 'disabled'}><i data-lucide="key-round"></i><span>reset password</span></button><button type="button" class="${profile.active ? 'revoke' : 'restore'}" data-team-active="${profile.id}" data-active="${profile.active ? 'false' : 'true'}" ${navigator.onLine ? '' : 'disabled'}><i data-lucide="${profile.active ? 'x' : 'check'}"></i><span>${profile.active ? 'revoke access' : 'restore access'}</span></button></div>`}</div>`).join('');
+  const teamCard = isCloudConfigured && currentProfile?.role === 'owner' ? `<section class="settings-card panel team-card"><div class="settings-title"><span><i data-lucide="users-round"></i></span><div><h2>team access</h2><p>create accounts, reset passwords, and revoke access.</p></div></div><form id="invite-staff-form"><div class="team-create-fields"><label><span>name</span><input name="displayName" autocomplete="name" placeholder="e.g. sam" required></label><label><span>email</span><input name="email" type="email" autocomplete="email" placeholder="name@example.com" required></label><label><span>account type</span><select name="role"><option value="staff">staff · sell and view orders</option><option value="owner">owner · full access</option></select></label><label><span>temporary password</span><input name="temporaryPassword" type="password" autocomplete="new-password" autocapitalize="none" minlength="8" placeholder="at least 8 characters" required></label></div><p class="team-helper">give each person their own account. revoked accounts keep their order history but cannot sign in.</p><button class="secondary-button wide invite-button" type="submit" ${navigator.onLine ? '' : 'disabled'}><i data-lucide="key-round"></i><span>${navigator.onLine ? 'create account' : 'internet required to create accounts'}</span></button></form><div class="team-list">${teamRows || '<p>your team will appear here.</p>'}</div></section>` : '';
   return `<div class="page settings-page">
     ${pageHeader('settings', 'the small things that keep service smooth.', '')}
     <div class="settings-grid">
@@ -378,6 +380,7 @@ function renderModal() {
   if (modal === 'price-picker') return renderPricePickerModal();
   if (modal === 'account') return renderAccountModal();
   if (modal === 'delete-archive' && archiveDeleteTarget) return renderArchiveDeleteModal();
+  if (modal === 'team-password' && teamPasswordTarget) return renderTeamPasswordModal();
   return '';
 }
 
@@ -463,12 +466,17 @@ function renderArchiveDeleteModal() {
   return `<div class="modal-layer"><section class="modal-card compact delete-confirmation">${modalHead(`delete ${kind}?`, 'this cannot be undone.')}<div class="delete-confirmation-icon"><i data-lucide="trash-2"></i></div><h3>${esc(target.name)}</h3><p>this ${kind} will be permanently removed from the current system. completed orders that used it will stay in your sales history.</p><div class="modal-split"><button class="secondary-button" data-action="close-modal">keep archived</button><button class="danger-button solid" data-action="confirm-archive-delete"><i data-lucide="trash-2"></i><span>delete permanently</span></button></div></section></div>`;
 }
 
+function renderTeamPasswordModal() {
+  const profile = teamPasswordTarget!;
+  return `<div class="modal-layer"><form class="modal-card compact" id="team-password-form">${modalHead('reset password', `set a new temporary password for ${esc(profile.displayName || profile.email)}.`)}<input type="hidden" name="userId" value="${profile.id}"><label><span>new temporary password</span><input name="temporaryPassword" type="password" autocomplete="new-password" autocapitalize="none" minlength="8" placeholder="at least 8 characters" required autofocus></label><label><span>confirm password</span><input name="confirmPassword" type="password" autocomplete="new-password" autocapitalize="none" minlength="8" placeholder="type it again" required></label><p class="team-helper">share this password privately. the team member can change it after signing in.</p><button class="modal-primary" type="submit"><span>save new password</span><i data-lucide="key-round"></i></button></form></div>`;
+}
+
 function renderOrderModal(order: Order) {
   const pending = isPendingOrder(order);
   return `<div class="modal-layer"><section class="modal-card order-detail">${modalHead(`order ${orderReference(order)}`, `${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()} · ${paymentLabel(order.paymentMethod)} · ${esc(order.deviceName || 'this ipad')}`)}<div class="order-detail-status"><span class="status-pill ${pending ? 'pending' : order.status}">${pending ? 'waiting to sync' : order.status}</span><strong>${money.format(order.total)}</strong></div><div class="detail-lines">${order.lines.map((line) => `<div><span><strong>${line.quantity}× ${esc(line.product.name)}</strong><small>${line.modifiers.map((item) => esc(item.name)).join(' · ') || 'no add-ons'}</small></span><strong>${money.format(lineUnitPrice(line) * line.quantity)}</strong></div>`).join('')}</div>${order.customerName || order.note ? `<div class="order-memo"><span>${esc(order.customerName || 'walk-in')}</span><p>${esc(order.note || 'no order note')}</p></div>` : ''}<div class="detail-totals"><div><span>subtotal</span><strong>${money.format(order.subtotal)}</strong></div>${order.discount ? `<div><span>${esc(order.discountLabel)}</span><strong>−${money.format(order.discount)}</strong></div>` : ''}${order.tax ? `<div><span>${esc(order.taxName)}</span><strong>${money.format(order.tax)}</strong></div>` : ''}<div><span>total</span><strong>${money.format(order.total)}</strong></div></div>${pending ? '<div class="pending-order-note"><i data-lucide="wifi-off"></i><span>refunds and voids become available after this order syncs.</span></div>' : order.status === 'completed' ? `<div class="order-fix"><p>need to fix this sale? enter the manager pin.</p><div><input id="order-pin" inputmode="numeric" type="password" placeholder="manager pin"><button data-order-status="refunded">refund</button><button data-order-status="voided">void</button></div></div>` : ''}</section></div>`;
 }
 
-const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sell-category],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive],[data-sku-prefix]';
+const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sell-category],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive],[data-team-password],[data-team-active],[data-sku-prefix]';
 const catalogTouchSelector = '[data-action="new-product"],[data-action="new-modifier"],[data-action="new-price-list"],[data-catalog-tab],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive]';
 
 app.addEventListener('touchend', (event) => {
@@ -538,9 +546,25 @@ app.addEventListener('click', async (event) => {
     if (item) { archiveDeleteTarget = { kind, id: item.id, name: item.name }; modal = 'delete-archive'; render(); }
     return;
   }
+  if (target.dataset.teamPassword) {
+    teamPasswordTarget = businessProfiles.find((profile) => profile.id === target.dataset.teamPassword) || null;
+    if (teamPasswordTarget) { modal = 'team-password'; render(); }
+    return;
+  }
+  if (target.dataset.teamActive) {
+    const active = target.dataset.active === 'true';
+    const button = target as HTMLButtonElement;
+    button.disabled = true;
+    try {
+      await updateTeamMemberActive(target.dataset.teamActive, active);
+      businessProfiles = await getBusinessProfiles();
+      render(); toast(active ? 'account access restored' : 'account access revoked');
+    } catch (error) { button.disabled = false; toast(readableError(error, 'account access could not be updated')); }
+    return;
+  }
 
   switch (target.dataset.action) {
-    case 'close-modal': modal = ''; archiveDeleteTarget = null; render(); break;
+    case 'close-modal': modal = ''; archiveDeleteTarget = null; teamPasswordTarget = null; render(); break;
     case 'open-account': modal = 'account'; render(); break;
     case 'change-sign-in-email': signInSentTo = ''; renderSignIn(); break;
     case 'email-sign-in-link': {
@@ -673,6 +697,19 @@ app.addEventListener('submit', async (event) => {
     if (button) button.disabled = true;
     try { await signInWithPassword(email, password); }
     catch (error) { if (button) button.disabled = false; toast(error instanceof Error ? error.message.toLowerCase() : 'sign in failed'); }
+    return;
+  }
+  if (form.id === 'team-password-form') {
+    const password = String(data.get('temporaryPassword') || '');
+    const confirmation = String(data.get('confirmPassword') || '');
+    if (password.length < 8) { toast('password must be at least 8 characters'); return; }
+    if (password !== confirmation) { toast('passwords do not match'); return; }
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+      await resetTeamMemberPassword(String(data.get('userId') || ''), password);
+      teamPasswordTarget = null; modal = ''; render(); toast('temporary password updated');
+    } catch (error) { if (button) button.disabled = false; toast(readableError(error, 'password could not be updated')); }
     return;
   }
   if (form.id === 'invite-staff-form') {

@@ -211,3 +211,6 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
 
 /* compact sell cards without losing alignment */
 .product-card{min-height:224px;padding:15px 16px 14px}.product-image{height:101px;margin:1px -4px 7px}.product-image img{height:98px;transform:translateY(4px)}.product-card>p{flex:none;min-height:30px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.product-price{margin-top:5px}
+
+/* compact owner controls for each team account */
+.team-list>div{padding:10px 0}.team-list>div.inactive{background:#f6f3ec}.team-list>div.inactive .team-avatar{background:#ece8df;color:#8d8d85}.team-account-actions{grid-column:2/-1;display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:3px}.team-account-actions button{min-height:32px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--navy);display:flex;align-items:center;justify-content:center;gap:6px;padding:0 9px;font-size:8px;font-weight:800}.team-account-actions button svg{width:12px;height:12px}.team-account-actions button.revoke{color:#994c40;border-color:#e5cbc5;background:#fffafa}.team-account-actions button.restore{color:var(--matcha-dark);border-color:#dbe5c5;background:#f5f8ee}.team-account-actions button:disabled{opacity:.45}

@@ -82,8 +82,9 @@ export async function getCurrentProfile(): Promise<PosProfile | null> {
     .from('profiles')
     .select('id, business_id, email, display_name, role, active, created_at')
     .eq('id', userData.user.id)
-    .single();
+    .maybeSingle();
   if (error) throw error;
+  if (!data) return null;
   return {
     id: data.id,
     businessId: data.business_id,
@@ -138,6 +139,26 @@ export async function updateTeamMemberRole(userId: string, role: UserRole) {
   return data as { id: string; role: UserRole };
 }
 
+export async function resetTeamMemberPassword(userId: string, temporaryPassword: string) {
+  const { data, error } = await client().functions.invoke('invite-staff', {
+    body: { action: 'reset-password', userId, temporaryPassword },
+  });
+  if (error) throw await readableFunctionError(error);
+  if (data?.error) throw new Error(data.error);
+  if (!data?.passwordReset) throw new Error('password service needs updating in supabase');
+  return data as { id: string; passwordReset: true };
+}
+
+export async function updateTeamMemberActive(userId: string, active: boolean) {
+  const { data, error } = await client().functions.invoke('invite-staff', {
+    body: { action: 'set-active', userId, active },
+  });
+  if (error) throw await readableFunctionError(error);
+  if (data?.error) throw new Error(data.error);
+  if (data?.active !== active) throw new Error('account access service needs updating in supabase');
+  return data as { id: string; active: boolean };
+}
+
 export function watchAuth(callback: (event: AuthChangeEvent, session: Session | null) => void) {
   if (!supabase) return () => undefined;
   const { data } = supabase.auth.onAuthStateChange(callback);
@@ -169,6 +190,7 @@ export function watchBusinessChanges(callback: () => void | Promise<void>) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'price_lists' }, schedule)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'business_settings' }, schedule)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, schedule)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, schedule)
     .subscribe();
   return () => { clearTimeout(timer); void supabase.removeChannel(channel); };
 }
