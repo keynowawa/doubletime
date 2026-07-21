@@ -86,16 +86,18 @@ const menuTaxMultiplier = () => settings.taxEnabled && settings.taxInclusive ? 1
 const menuAmount = (amount: number) => amount * menuTaxMultiplier();
 const menuUnitPrice = (product: Product, selected: Modifier[]) => menuAmount(currentPrice(product) + selected.reduce((sum, item) => sum + item.price, 0));
 const lineUnitPrice = (line: CartLine) => line.unitPrice ?? menuUnitPrice(line.product, line.modifiers);
-const subtotal = () => cart.reduce((sum, line) => sum + lineUnitPrice(line) * line.quantity, 0);
+const currencyRound = (amount: number) => Math.round((amount + Number.EPSILON) * 100) / 100;
+const checkoutPriceTotal = () => cart.reduce((sum, line) => sum + lineUnitPrice(line) * line.quantity, 0);
+const subtotal = () => currencyRound(checkoutPriceTotal() / menuTaxMultiplier());
 const discountAmount = () => {
   if (!discount) return 0;
-  return Math.min(subtotal(), discount.type === 'percent' ? subtotal() * discount.value / 100 : discount.value);
+  return currencyRound(Math.min(subtotal(), discount.type === 'percent' ? subtotal() * discount.value / 100 : discount.value));
 };
 const totals = () => {
   const beforeTax = Math.max(0, subtotal() - discountAmount());
   const rate = settings.taxEnabled ? Math.max(0, settings.taxRate) / 100 : 0;
-  const tax = !rate ? 0 : settings.taxInclusive ? beforeTax - beforeTax / (1 + rate) : beforeTax * rate;
-  return { subtotal: subtotal(), discount: discountAmount(), tax, total: settings.taxInclusive ? beforeTax : beforeTax + tax };
+  const tax = currencyRound(beforeTax * rate);
+  return { subtotal: subtotal(), discount: discountAmount(), tax, total: currencyRound(beforeTax + tax) };
 };
 
 function navItem(id: View, label: string, glyph: string) {
