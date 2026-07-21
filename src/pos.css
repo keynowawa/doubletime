@@ -173,4 +173,5 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .team-list>div:last-child{border-bottom:0}.team-avatar{width:32px;height:32px;border-radius:50%;background:#e8eddc;color:var(--matcha-dark);display:grid;place-items:center;font-size:10px;font-weight:800}
 .team-list>div>span:nth-child(2) strong,.team-list>div>span:nth-child(2) small{display:block}.team-list strong{font-size:10px;color:var(--ink)}.team-list small{font-size:8px;color:var(--muted);margin-top:2px}.team-list>p{font-size:9px;color:var(--muted);text-align:center}
 .price-switcher.read-only{cursor:default}
+.form-save-error{margin:14px 0 0;color:#994c40;background:#f2e5e1;border:1px solid #e5c9c1;border-radius:11px;padding:10px 12px;font-size:10px;line-height:1.4}
 @media(max-width:820px) and (orientation:portrait){.account-nav{width:48px;min-height:48px}.account-nav small{display:none}.account-nav>span{width:26px;height:26px}.auth-card{padding:28px}.auth-card h1{font-size:28px}.account-password form,.team-create-fields{grid-template-columns:1fr}.team-create-fields .full{grid-column:auto}}

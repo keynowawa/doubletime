@@ -88,6 +88,13 @@ async function replaceLocal<T>(storeName: EntityStore, values: T[]) {
 const cloudActive = () => Boolean(isCloudConfigured && supabase && cloudProfile);
 const tableName = (storeName: EntityStore) => ({ products: 'products', modifiers: 'modifiers', priceLists: 'price_lists', orders: 'orders', settings: 'business_settings' })[storeName];
 const isOfflineFailure = (error: unknown) => !navigator.onLine || error instanceof TypeError || /network|fetch|offline/i.test(error instanceof Error ? error.message : String(error));
+const cloudWriteTimeout = <T>(operation: PromiseLike<T>, milliseconds = 10000) => new Promise<T>((resolve, reject) => {
+  const timeout = window.setTimeout(() => reject(new TypeError('cloud sync timed out')), milliseconds);
+  Promise.resolve(operation).then(
+    (value) => { window.clearTimeout(timeout); resolve(value); },
+    (error) => { window.clearTimeout(timeout); reject(error); },
+  );
+});
 
 export function connectCloud(profile: PosProfile | null) { cloudProfile = profile; }
 export function usingCloud() { return cloudActive(); }
@@ -156,7 +163,7 @@ export async function save<T>(storeName: EntityStore, value: T) {
   await putLocal(storeName, value);
   if (!cloudActive()) return value;
   if (!navigator.onLine) { await queue(storeName, 'upsert', value); return value; }
-  try { return await upsertCloud(storeName, value); }
+  try { return await cloudWriteTimeout(upsertCloud(storeName, value)); }
   catch (error) {
     if (isOfflineFailure(error)) { await queue(storeName, 'upsert', value); return value; }
     throw error;

@@ -420,8 +420,21 @@ function renderOrderModal(order: Order) {
 const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sold-out],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list]';
 const catalogTouchSelector = '[data-action="new-product"],[data-action="new-modifier"],[data-action="new-price-list"],[data-catalog-tab],[data-edit-product],[data-edit-modifier],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list]';
 
+function requestFormSubmit(button: HTMLButtonElement) {
+  const form = button.form;
+  if (!form || button.disabled || !form.reportValidity()) return;
+  if (typeof form.requestSubmit === 'function') form.requestSubmit(button);
+  else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+}
+
 app.addEventListener('touchend', (event) => {
   if (!(event.target instanceof Element)) return;
+  const submitButton = event.target.closest<HTMLButtonElement>('button[type="submit"]');
+  if (submitButton?.form) {
+    event.preventDefault();
+    requestFormSubmit(submitButton);
+    return;
+  }
   const target = event.target.closest<HTMLElement>(catalogTouchSelector);
   if (!target) return;
   event.preventDefault();
@@ -430,6 +443,12 @@ app.addEventListener('touchend', (event) => {
 
 app.addEventListener('click', async (event) => {
   if (!(event.target instanceof Element)) return;
+  const submitButton = event.target.closest<HTMLButtonElement>('button[type="submit"]');
+  if (submitButton?.form) {
+    event.preventDefault();
+    requestFormSubmit(submitButton);
+    return;
+  }
   const target = event.target.closest<HTMLElement>(interactiveSelector);
   if (!target) return;
 
@@ -584,9 +603,9 @@ app.addEventListener('submit', async (event) => {
     discount = { type: data.get('type') as Discount['type'], value: Number(data.get('value')), label: String(data.get('label') || 'discount') };
     modal = ''; render(); return;
   }
-  if (form.id === 'product-form') { await saveProduct(data); return; }
-  if (form.id === 'modifier-form') { await saveModifier(data); return; }
-  if (form.id === 'price-list-form') { await savePriceList(data); return; }
+  if (form.id === 'product-form') { await runEditorSave(form, () => saveProduct(data), 'product could not be saved'); return; }
+  if (form.id === 'modifier-form') { await runEditorSave(form, () => saveModifier(data), 'add-on could not be saved'); return; }
+  if (form.id === 'price-list-form') { await runEditorSave(form, () => savePriceList(data), 'price list could not be saved'); return; }
   if (form.id === 'business-settings') {
     settings.activePriceListId = String(data.get('activePriceListId'));
     settings.taxEnabled = data.get('taxEnabled') === 'on';
@@ -595,6 +614,40 @@ app.addEventListener('submit', async (event) => {
   }
   if (form.id === 'security-settings') { try { await updateManagerPin(String(data.get('managerPin'))); settings.managerPin = ''; render(); toast('manager pin updated'); } catch (error) { toast(error instanceof Error ? error.message.toLowerCase() : 'pin could not be updated'); } }
 });
+
+function readableError(error: unknown, fallback: string) {
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message.toLowerCase();
+  return fallback;
+}
+
+async function runEditorSave(form: HTMLFormElement, operation: () => Promise<void>, fallback: string) {
+  const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+  const originalMarkup = button?.innerHTML || '';
+  form.querySelector('.form-save-error')?.remove();
+  if (button) {
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    button.textContent = 'saving…';
+  }
+  try {
+    await operation();
+  } catch (error) {
+    console.error(fallback, error);
+    if (button && button.isConnected) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      button.innerHTML = originalMarkup;
+      hydrateIcons();
+      const message = readableError(error, fallback);
+      const alert = document.createElement('p');
+      alert.className = 'form-save-error';
+      alert.setAttribute('role', 'alert');
+      alert.textContent = message;
+      button.insertAdjacentElement('beforebegin', alert);
+      toast(message);
+    }
+  }
+}
 
 function addToCart() {
   if (!activeProduct) return;
@@ -671,10 +724,10 @@ async function saveProduct(data: FormData) {
   const enteredPrice = Number(data.get('price'));
   const item: Product = { id: existing?.id || uid(), sku: String(data.get('sku')).trim(), name: String(data.get('name')).trim(), description: String(data.get('description')).trim(), category: String(data.get('category')).trim(), price: enteredPrice, standardPrice: existing?.standardPrice || enteredPrice, image: String(data.get('image') || '/assets/DT-LOGO-001.png'), modifierIds: data.getAll('modifierIds').map(String), soldOut: existing?.soldOut || false, archived: false, createdAt: existing?.createdAt || new Date().toISOString() };
   await save('products', item);
-  for (const list of priceLists.filter((priceList) => !priceList.archived)) {
+  await Promise.all(priceLists.filter((priceList) => !priceList.archived).map(async (list) => {
     if (list.id === settings.activePriceListId || list.prices[item.id] === undefined) list.prices[item.id] = enteredPrice;
     await save('priceLists', list);
-  }
+  }));
   await refreshData(); modal = ''; render(); toast(existing ? 'product updated' : 'product added');
 }
 
