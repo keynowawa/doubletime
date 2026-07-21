@@ -40,7 +40,10 @@ export default {
           .select("id, business_id, active")
           .eq("id", body.userId)
           .single();
-        if (targetError || !target || target.business_id !== profile.business_id) {
+        if (targetError) {
+          throw new Error(`account lookup failed: ${targetError.message}`);
+        }
+        if (!target || target.business_id !== profile.business_id) {
           throw new Error("account not found");
         }
 
