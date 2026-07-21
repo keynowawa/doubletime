@@ -2,11 +2,13 @@ import './pos.css';
 import { strToU8, zipSync } from 'fflate';
 import { Archive, Banknote, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
 import { changePassword, createTeamAccount, getBusinessProfiles, getCurrentProfile, getSession, isCloudConfigured, sendSignInLink, signInWithPassword, signOut, updateTeamMemberRole, watchAuth, watchBusinessChanges } from './pos-auth';
-import { OFFLINE_ACCESS_DAYS, adjustProductStock, cacheOfflineAccess, changeOrderStatus as persistOrderStatus, clearOfflineAccess, connectCloud, createOrder, exportBackup, getDeviceIdentity, getModifiers, getOfflineAccess, getOrders, getPendingSyncState, getPriceLists, getProducts, getSettings, importBackup, initializeStore, save, syncFromCloud, updateDeviceIdentity, updateManagerPin, usingCloud } from './pos-store';
+import { OFFLINE_ACCESS_DAYS, adjustProductStock, cacheOfflineAccess, changeOrderStatus as persistOrderStatus, clearOfflineAccess, connectCloud, createOrder, exportBackup, getDeviceIdentity, getModifiers, getOfflineAccess, getOrders, getPendingSyncState, getPriceLists, getProducts, getSettings, importBackup, initializeStore, removeCatalogItem, save, syncFromCloud, updateDeviceIdentity, updateManagerPin, usingCloud } from './pos-store';
 import type { CartLine, DeviceIdentity, Discount, Modifier, Order, OrderStatus, PaymentMethod, PosProfile, PriceList, Product, Settings, UserRole } from './pos-types';
 
 type View = 'sell' | 'dashboard' | 'orders' | 'catalog' | 'settings';
-type Modal = '' | 'modifiers' | 'discount' | 'payment' | 'receipt' | 'product' | 'modifier' | 'order' | 'price-list' | 'price-picker' | 'account';
+type Modal = '' | 'modifiers' | 'discount' | 'payment' | 'receipt' | 'product' | 'modifier' | 'order' | 'price-list' | 'price-picker' | 'account' | 'delete-archive';
+type ArchiveKind = 'product' | 'modifier' | 'priceList';
+type ArchiveDeleteTarget = { kind: ArchiveKind; id: string; name: string };
 
 const app = document.querySelector<HTMLElement>('#pos-app')!;
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -52,6 +54,7 @@ let pendingSyncCount = 0;
 let pendingOrderIds = new Set<string>();
 let syncPhase: 'online' | 'offline' | 'syncing' = navigator.onLine ? 'online' : 'offline';
 let sellCategory = '';
+let archiveDeleteTarget: ArchiveDeleteTarget | null = null;
 
 const paymentMethods: { id: PaymentMethod; label: string; note: string; icon: string }[] = [
   { id: 'cash', label: 'cash', note: 'calculate change', icon: 'banknote' },
@@ -271,7 +274,7 @@ function renderOrders() {
   const todayOrders = orders.filter((order) => new Date(order.createdAt).toDateString() === today && order.status === 'completed');
   return `<div class="page orders-page">
     ${pageHeader('orders', 'all recorded orders, with today shown up top.', isOwner() ? `<div class="order-header-actions"><button class="secondary-button" data-action="export-csv">export csv</button><button class="secondary-button dark" data-action="export-excel">export excel</button></div>` : '')}
-    <div class="order-strip"><div><span>today's sales</span><strong>${money.format(todayOrders.reduce((sum, order) => sum + order.total, 0))}</strong></div><div><span>today's orders</span><strong>${todayOrders.length}</strong></div><div class="all-orders-stat"><span>all recorded</span><strong>${orders.length} orders</strong></div></div>
+    <div class="order-strip"><div class="sales-stat"><span>today's sales</span><strong>${money.format(todayOrders.reduce((sum, order) => sum + order.total, 0))}</strong></div><div class="orders-stat"><span>today's orders</span><strong>${todayOrders.length}</strong></div><div class="all-orders-stat"><span>all recorded</span><strong>${orders.length} orders</strong></div></div>
     <div class="orders-toolbar panel"><label class="search-box"><i data-lucide="search"></i><input data-field="order-search" value="${esc(orderSearch)}" placeholder="search order, customer, payment"></label><div class="table-filters"><label><span class="visually-hidden">date range</span><select data-order-filter="range"><option value="all" ${orderRange === 'all' ? 'selected' : ''}>all time</option><option value="today" ${orderRange === 'today' ? 'selected' : ''}>today</option><option value="7days" ${orderRange === '7days' ? 'selected' : ''}>last 7 days</option><option value="30days" ${orderRange === '30days' ? 'selected' : ''}>last 30 days</option></select></label><label><span class="visually-hidden">status</span><select data-order-filter="status"><option value="all" ${orderStatus === 'all' ? 'selected' : ''}>all statuses</option><option value="completed" ${orderStatus === 'completed' ? 'selected' : ''}>completed</option><option value="refunded" ${orderStatus === 'refunded' ? 'selected' : ''}>refunded</option><option value="voided" ${orderStatus === 'voided' ? 'selected' : ''}>voided</option></select></label><label><span class="visually-hidden">payment</span><select data-order-filter="payment"><option value="all" ${orderPayment === 'all' ? 'selected' : ''}>all payments</option>${paymentMethods.map((method) => `<option value="${method.id}" ${orderPayment === method.id ? 'selected' : ''}>${method.label}</option>`).join('')}</select></label><label><span class="visually-hidden">sort orders</span><select data-order-filter="sort"><option value="newest" ${orderSort === 'newest' ? 'selected' : ''}>newest first</option><option value="oldest" ${orderSort === 'oldest' ? 'selected' : ''}>oldest first</option><option value="highest" ${orderSort === 'highest' ? 'selected' : ''}>highest total</option><option value="lowest" ${orderSort === 'lowest' ? 'selected' : ''}>lowest total</option></select></label></div></div>
     <section class="order-table panel"><div class="table-head"><span>order</span><span>time</span><span>items</span><span>payment</span><span>status</span><span>total</span></div>
       ${matches.length ? matches.map((order) => `<button class="table-row" data-order="${order.id}"><span><strong>${orderReference(order)}</strong><small>${esc(order.customerName || 'walk-in')}${isPendingOrder(order) ? ' · waiting to sync' : ''}</small></span><span>${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()}</span><span>${order.lines.reduce((sum, line) => sum + line.quantity, 0)}</span><span>${paymentLabel(order.paymentMethod)}</span><span><i class="status-pill ${isPendingOrder(order) ? 'pending' : order.status}">${isPendingOrder(order) ? 'pending' : order.status}</i></span><span><strong>${money.format(order.total)}</strong><i data-lucide="chevron-right"></i></span></button>`).join('') : emptyTable(query || orderRange !== 'all' || orderStatus !== 'all' || orderPayment !== 'all' ? 'no orders match these filters.' : 'completed orders will appear here.')}
@@ -288,15 +291,16 @@ function renderCatalog() {
   const archivedPriceLists = priceLists.filter((item) => item.archived);
   const archivedCount = archivedProducts.length + archivedModifiers.length + archivedPriceLists.length;
   const action = catalogTab === 'products' ? '<button class="primary-small add-action" data-action="new-product"><i data-lucide="circle-plus"></i><span>add product</span></button>' : catalogTab === 'addons' ? '<button class="primary-small add-action" data-action="new-modifier"><i data-lucide="circle-plus"></i><span>add add-on</span></button>' : catalogTab === 'prices' ? '<button class="primary-small add-action" data-action="new-price-list"><i data-lucide="circle-plus"></i><span>add price list</span></button>' : '';
+  const archiveActions = (kind: ArchiveKind, id: string, restoreAttribute: string) => `<div class="archive-actions"><button ${restoreAttribute}="${esc(id)}"><i data-lucide="check"></i><span>restore</span></button><button class="archive-delete" data-delete-archive="${esc(id)}" data-archive-kind="${kind}" aria-label="permanently delete"><i data-lucide="trash-2"></i><span>delete</span></button></div>`;
   const archiveRows = [
-    ...archivedProducts.map((item) => `<article class="archive-row"><span class="archive-kind"><i data-lucide="archive"></i></span><div><small>product · ${esc(item.sku)}</small><strong>${esc(item.name)}</strong></div><button data-restore-product="${item.id}"><i data-lucide="check"></i><span>restore</span></button></article>`),
-    ...archivedModifiers.map((item) => `<article class="archive-row"><span class="archive-kind"><i data-lucide="archive"></i></span><div><small>add-on · ${esc(item.sku)}</small><strong>${esc(item.name)}</strong></div><button data-restore-modifier="${item.id}"><i data-lucide="check"></i><span>restore</span></button></article>`),
-    ...archivedPriceLists.map((item) => `<article class="archive-row"><span class="archive-kind"><i data-lucide="archive"></i></span><div><small>price list</small><strong>${esc(item.name)}</strong></div><button data-restore-price-list="${item.id}"><i data-lucide="check"></i><span>restore</span></button></article>`),
+    ...archivedProducts.map((item) => `<article class="archive-row"><span class="archive-kind"><i data-lucide="archive"></i></span><div><small>product · ${esc(item.sku)}</small><strong>${esc(item.name)}</strong></div>${archiveActions('product', item.id, 'data-restore-product')}</article>`),
+    ...archivedModifiers.map((item) => `<article class="archive-row"><span class="archive-kind"><i data-lucide="archive"></i></span><div><small>add-on · ${esc(item.sku)}</small><strong>${esc(item.name)}</strong></div>${archiveActions('modifier', item.id, 'data-restore-modifier')}</article>`),
+    ...archivedPriceLists.map((item) => `<article class="archive-row"><span class="archive-kind"><i data-lucide="archive"></i></span><div><small>price list</small><strong>${esc(item.name)}</strong></div>${archiveActions('priceList', item.id, 'data-restore-price-list')}</article>`),
   ].join('');
   return `<div class="page catalog-page">
     ${pageHeader('menu', 'drinks, add-ons, and pricing in one quiet place.', action)}
     <div class="tabs"><button class="${catalogTab === 'products' ? 'active' : ''}" data-catalog-tab="products">products <span>${activeProducts.length}</span></button><button class="${catalogTab === 'addons' ? 'active' : ''}" data-catalog-tab="addons">add-ons <span>${activeModifiers.length}</span></button><button class="${catalogTab === 'prices' ? 'active' : ''}" data-catalog-tab="prices">price lists <span>${availablePriceLists.length}</span></button><button class="${catalogTab === 'archive' ? 'active' : ''}" data-catalog-tab="archive">archive <span>${archivedCount}</span></button></div>
-    ${catalogTab === 'products' ? `<div class="catalog-list">${activeProducts.map((product) => { const unavailable = productUnavailable(product); return `<article class="catalog-row product-admin-row ${unavailable ? 'is-sold' : ''}"><div class="catalog-thumb"><img src="${esc(product.image)}" alt=""></div><div class="catalog-name"><small>${esc(product.sku)}</small><strong>${esc(product.name)}</strong><span>${esc(product.description)}</span></div><div class="catalog-price"><small>${esc(activePriceList()?.name || 'active price')}</small><strong>${money.format(currentPrice(product))}</strong></div><div class="inventory-cell">${product.trackStock ? `<small>stock on hand</small><div class="stock-stepper"><button data-stock-adjust="${product.id}" data-delta="-1" aria-label="remove one from ${esc(product.name)} stock"><i data-lucide="minus"></i></button><strong>${product.stockQuantity || 0}</strong><button data-stock-adjust="${product.id}" data-delta="1" aria-label="add one to ${esc(product.name)} stock"><i data-lucide="plus"></i></button></div>` : '<small>stock</small><strong>not tracked</strong>'}</div><button class="stock-toggle ${unavailable ? 'sold' : ''}" data-availability="${product.id}"><i data-lucide="${unavailable ? 'x' : 'check'}"></i><span>${unavailable ? 'unavailable' : 'available'}</span></button><button class="row-menu" data-edit-product="${product.id}"><i data-lucide="pencil"></i><span>edit</span></button></article>`; }).join('')}</div>` : catalogTab === 'addons' ? `<div class="catalog-list">${activeModifiers.map((item) => `<article class="catalog-row addon-row"><div class="addon-mark"><i data-lucide="circle-plus"></i></div><div class="catalog-name"><small>${esc(item.sku)}</small><strong>${esc(item.name)}</strong><span>available on ${products.filter((product) => !product.archived && product.modifierIds.includes(item.id)).length} product(s)</span></div><div class="catalog-price"><small>price</small><strong>${money.format(item.price)}</strong></div><button class="row-menu" data-edit-modifier="${item.id}"><i data-lucide="pencil"></i><span>edit</span></button></article>`).join('')}</div>` : catalogTab === 'prices' ? `<div class="price-list-grid">${availablePriceLists.map((list) => renderPriceListCard(list)).join('')}</div>` : `<section class="archive-panel"><div class="archive-explainer"><i data-lucide="archive"></i><div><strong>archived items are hidden, not deleted</strong><small>restore them anytime without changing past orders.</small></div></div>${archiveRows || emptyPanel('nothing is archived.', 'archive')}</section>`}
+    ${catalogTab === 'products' ? `<div class="catalog-list">${activeProducts.map((product) => { const unavailable = productUnavailable(product); return `<article class="catalog-row product-admin-row ${unavailable ? 'is-sold' : ''}"><div class="catalog-thumb"><img src="${esc(product.image)}" alt=""></div><div class="catalog-name"><small>${esc(product.sku)}</small><strong>${esc(product.name)}</strong><span>${esc(product.description)}</span></div><div class="catalog-price"><small>${esc(activePriceList()?.name || 'active price')}</small><strong>${money.format(currentPrice(product))}</strong></div><div class="inventory-cell">${product.trackStock ? `<small>stock on hand</small><div class="stock-stepper"><button data-stock-adjust="${product.id}" data-delta="-1" aria-label="remove one from ${esc(product.name)} stock"><i data-lucide="minus"></i></button><strong>${product.stockQuantity || 0}</strong><button data-stock-adjust="${product.id}" data-delta="1" aria-label="add one to ${esc(product.name)} stock"><i data-lucide="plus"></i></button></div>` : '<small>stock</small><strong>not tracked</strong>'}</div><button class="stock-toggle ${unavailable ? 'sold' : ''}" data-availability="${product.id}"><i data-lucide="${unavailable ? 'x' : 'check'}"></i><span>${unavailable ? 'unavailable' : 'available'}</span></button><button class="row-menu" data-edit-product="${product.id}"><i data-lucide="pencil"></i><span>edit</span></button></article>`; }).join('')}</div>` : catalogTab === 'addons' ? `<div class="catalog-list">${activeModifiers.map((item) => `<article class="catalog-row addon-row"><div class="addon-mark"><i data-lucide="circle-plus"></i></div><div class="catalog-name"><small>${esc(item.sku)}</small><strong>${esc(item.name)}</strong><span>available on ${products.filter((product) => !product.archived && product.modifierIds.includes(item.id)).length} product(s)</span></div><div class="catalog-price"><small>price</small><strong>${money.format(item.price)}</strong></div><button class="row-menu" data-edit-modifier="${item.id}"><i data-lucide="pencil"></i><span>edit</span></button></article>`).join('')}</div>` : catalogTab === 'prices' ? `<div class="price-list-grid">${availablePriceLists.map((list) => renderPriceListCard(list)).join('')}</div>` : `<section class="archive-panel"><div class="archive-explainer"><i data-lucide="archive"></i><div><strong>archive keeps items recoverable</strong><small>restore anytime, or permanently delete an item you are certain you no longer need. past orders stay unchanged.</small></div></div>${archiveRows || emptyPanel('nothing is archived.', 'archive')}</section>`}
   </div>`;
 }
 
@@ -371,6 +375,7 @@ function renderModal() {
   if (modal === 'price-list') return renderPriceListModal();
   if (modal === 'price-picker') return renderPricePickerModal();
   if (modal === 'account') return renderAccountModal();
+  if (modal === 'delete-archive' && archiveDeleteTarget) return renderArchiveDeleteModal();
   return '';
 }
 
@@ -450,13 +455,19 @@ function renderPriceListModal() {
   return `<div class="modal-layer"><form class="modal-card price-editor" id="price-list-form">${modalHead(editingPriceList ? 'edit price list' : 'new price list', 'choose exactly what appears on this menu.')}<input type="hidden" name="id" value="${esc(editingPriceList?.id || '')}"><label><span>price list name</span><input name="name" value="${esc(editingPriceList?.name || '')}" placeholder="e.g. porsche & pilates" required autofocus></label><div class="field-heading"><span>menu items</span><small>turn off anything you do not want to sell on this price list</small></div><div class="price-editor-list">${availableProducts.map((product) => { const included = !source || priceListIncludes(source, product); return `<div class="price-editor-row ${included ? '' : 'excluded'}"><label class="price-include"><input name="includedProductIds" type="checkbox" value="${product.id}" ${included ? 'checked' : ''}><i>✓</i><span class="price-product"><img src="${esc(product.image)}" alt=""><span><strong>${esc(product.name)}</strong><small>${esc(product.sku)}</small></span></span></label><label class="price-input"><b>₱</b><input name="price:${product.id}" type="number" min="0" step="1" value="${source?.prices[product.id] ?? product.price}" placeholder="0" required></label></div>`; }).join('')}</div><label class="switch-row activate-list"><span><strong>use after saving</strong><small>switch the selling screen to this list</small></span><input type="checkbox" name="activate" ${!editingPriceList ? 'checked' : ''}><i></i></label><button class="modal-primary" type="button" data-editor-save="price-list"><span>save price list</span><i data-lucide="check"></i></button></form></div>`;
 }
 
+function renderArchiveDeleteModal() {
+  const target = archiveDeleteTarget!;
+  const kind = target.kind === 'priceList' ? 'price list' : target.kind === 'modifier' ? 'add-on' : 'product';
+  return `<div class="modal-layer"><section class="modal-card compact delete-confirmation">${modalHead(`delete ${kind}?`, 'this cannot be undone.')}<div class="delete-confirmation-icon"><i data-lucide="trash-2"></i></div><h3>${esc(target.name)}</h3><p>this ${kind} will be permanently removed from the current system. completed orders that used it will stay in your sales history.</p><div class="modal-split"><button class="secondary-button" data-action="close-modal">keep archived</button><button class="danger-button solid" data-action="confirm-archive-delete"><i data-lucide="trash-2"></i><span>delete permanently</span></button></div></section></div>`;
+}
+
 function renderOrderModal(order: Order) {
   const pending = isPendingOrder(order);
   return `<div class="modal-layer"><section class="modal-card order-detail">${modalHead(`order ${orderReference(order)}`, `${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()} · ${paymentLabel(order.paymentMethod)} · ${esc(order.deviceName || 'this ipad')}`)}<div class="order-detail-status"><span class="status-pill ${pending ? 'pending' : order.status}">${pending ? 'waiting to sync' : order.status}</span><strong>${money.format(order.total)}</strong></div><div class="detail-lines">${order.lines.map((line) => `<div><span><strong>${line.quantity}× ${esc(line.product.name)}</strong><small>${line.modifiers.map((item) => esc(item.name)).join(' · ') || 'no add-ons'}</small></span><strong>${money.format(lineUnitPrice(line) * line.quantity)}</strong></div>`).join('')}</div>${order.customerName || order.note ? `<div class="order-memo"><span>${esc(order.customerName || 'walk-in')}</span><p>${esc(order.note || 'no order note')}</p></div>` : ''}<div class="detail-totals"><div><span>subtotal</span><strong>${money.format(order.subtotal)}</strong></div>${order.discount ? `<div><span>${esc(order.discountLabel)}</span><strong>−${money.format(order.discount)}</strong></div>` : ''}${order.tax ? `<div><span>${esc(order.taxName)}</span><strong>${money.format(order.tax)}</strong></div>` : ''}<div><span>total</span><strong>${money.format(order.total)}</strong></div></div>${pending ? '<div class="pending-order-note"><i data-lucide="wifi-off"></i><span>refunds and voids become available after this order syncs.</span></div>' : order.status === 'completed' ? `<div class="order-fix"><p>need to fix this sale? enter the manager pin.</p><div><input id="order-pin" inputmode="numeric" type="password" placeholder="manager pin"><button data-order-status="refunded">refund</button><button data-order-status="voided">void</button></div></div>` : ''}</section></div>`;
 }
 
-const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sell-category],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-sku-prefix]';
-const catalogTouchSelector = '[data-action="new-product"],[data-action="new-modifier"],[data-action="new-price-list"],[data-catalog-tab],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list]';
+const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sell-category],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive],[data-sku-prefix]';
+const catalogTouchSelector = '[data-action="new-product"],[data-action="new-modifier"],[data-action="new-price-list"],[data-catalog-tab],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive]';
 
 app.addEventListener('touchend', (event) => {
   if (!(event.target instanceof Element)) return;
@@ -519,9 +530,15 @@ app.addEventListener('click', async (event) => {
   if (target.dataset.restoreProduct) { const item = products.find((product) => product.id === target.dataset.restoreProduct); if (item) { item.archived = false; await save('products', item); await refreshData(); render(); toast('product restored'); } return; }
   if (target.dataset.restoreModifier) { const item = modifiers.find((modifier) => modifier.id === target.dataset.restoreModifier); if (item) { item.archived = false; await save('modifiers', item); await refreshData(); render(); toast('add-on restored'); } return; }
   if (target.dataset.restorePriceList) { const item = priceLists.find((list) => list.id === target.dataset.restorePriceList); if (item) { item.archived = false; await save('priceLists', item); await refreshData(); render(); toast('price list restored'); } return; }
+  if (target.dataset.deleteArchive && target.dataset.archiveKind) {
+    const kind = target.dataset.archiveKind as ArchiveKind;
+    const item = kind === 'product' ? products.find((product) => product.id === target.dataset.deleteArchive) : kind === 'modifier' ? modifiers.find((modifier) => modifier.id === target.dataset.deleteArchive) : priceLists.find((list) => list.id === target.dataset.deleteArchive);
+    if (item) { archiveDeleteTarget = { kind, id: item.id, name: item.name }; modal = 'delete-archive'; render(); }
+    return;
+  }
 
   switch (target.dataset.action) {
-    case 'close-modal': modal = ''; render(); break;
+    case 'close-modal': modal = ''; archiveDeleteTarget = null; render(); break;
     case 'open-account': modal = 'account'; render(); break;
     case 'change-sign-in-email': signInSentTo = ''; renderSignIn(); break;
     case 'email-sign-in-link': {
@@ -549,6 +566,13 @@ app.addEventListener('click', async (event) => {
     case 'manage-price-lists': catalogTab = 'prices'; view = 'catalog'; modal = ''; render(); break;
     case 'archive-product': await archiveProduct(); break;
     case 'archive-modifier': await archiveModifier(); break;
+    case 'confirm-archive-delete': {
+      const button = target as HTMLButtonElement;
+      button.disabled = true;
+      try { await permanentlyDeleteArchivedItem(); }
+      catch (error) { button.disabled = false; toast(readableError(error, 'item could not be deleted')); }
+      break;
+    }
     case 'export-csv': if (isOwner()) exportCsv(); else toast('owner access required'); break;
     case 'export-excel': if (isOwner()) await exportExcel(); else toast('owner access required'); break;
     case 'backup': if (isOwner()) await downloadBackup(); else toast('owner access required'); break;
@@ -852,6 +876,34 @@ async function saveModifier(data: FormData) {
 
 async function archiveProduct() { if (!editingProduct) return; editingProduct.archived = true; await save('products', editingProduct); await refreshData(); modal = ''; render(); toast('product archived'); }
 async function archiveModifier() { if (!editingModifier) return; editingModifier.archived = true; await save('modifiers', editingModifier); for (const product of products.filter((item) => item.modifierIds.includes(editingModifier!.id))) { product.modifierIds = product.modifierIds.filter((id) => id !== editingModifier!.id); await save('products', product); } await refreshData(); modal = ''; render(); toast('add-on archived'); }
+
+async function permanentlyDeleteArchivedItem() {
+  const target = archiveDeleteTarget;
+  if (!target || !isOwner()) return;
+  if (target.kind === 'product') {
+    await Promise.all(priceLists.map(async (list) => {
+      if (list.prices[target.id] === undefined && !list.productIds?.includes(target.id)) return;
+      delete list.prices[target.id];
+      if (list.productIds) list.productIds = list.productIds.filter((id) => id !== target.id);
+      await save('priceLists', list);
+    }));
+    await removeCatalogItem('products', target.id);
+  } else if (target.kind === 'modifier') {
+    await Promise.all(products.filter((product) => product.modifierIds.includes(target.id)).map(async (product) => {
+      product.modifierIds = product.modifierIds.filter((id) => id !== target.id);
+      await save('products', product);
+    }));
+    await removeCatalogItem('modifiers', target.id);
+  } else {
+    if (target.id === settings.activePriceListId) throw new Error('the active price list cannot be deleted');
+    await removeCatalogItem('priceLists', target.id);
+  }
+  archiveDeleteTarget = null;
+  modal = '';
+  await refreshData();
+  render();
+  toast('item permanently deleted');
+}
 
 async function changeOrderStatus(status: OrderStatus) {
   if (!activeOrder) return;

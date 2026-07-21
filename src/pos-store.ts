@@ -7,9 +7,10 @@ const entityStores = ['products', 'modifiers', 'orders', 'settings', 'priceLists
 const stores = [...entityStores, 'outbox', 'metadata'] as const;
 type EntityStore = (typeof entityStores)[number];
 type StoreName = (typeof stores)[number];
-type CloudOperation = 'upsert' | 'create-order' | 'inventory-adjustment';
+type CloudOperation = 'upsert' | 'delete' | 'create-order' | 'inventory-adjustment';
 type OutboxRecord = { id: string; storeName: EntityStore; operation: CloudOperation; value: unknown; queuedAt: string };
 type InventoryAdjustment = { id: string; productId: string; delta: number; reason: 'sale' | 'manual'; referenceId?: string; createdAt: string };
+type CatalogStore = Exclude<EntityStore, 'orders' | 'settings'>;
 export type PendingSyncState = { count: number; orderIds: string[] };
 
 export const OFFLINE_ACCESS_DAYS = 7;
@@ -227,6 +228,49 @@ export async function save<T>(storeName: EntityStore, value: T) {
   }
 }
 
+async function clearQueuedEntityChanges(storeName: CatalogStore, id: string) {
+  const records = await allLocal<OutboxRecord>('outbox');
+  const matching = records.filter((record) => {
+    if (record.storeName !== storeName) return false;
+    if (record.operation === 'inventory-adjustment') return storeName === 'products' && (record.value as InventoryAdjustment).productId === id;
+    return (record.value as { id?: string })?.id === id;
+  });
+  await Promise.all(matching.map((record) => deleteLocal('outbox', record.id)));
+}
+
+async function deleteCloudCatalogItem(storeName: CatalogStore, id: string) {
+  if (!supabase || !cloudProfile) return;
+  const table = tableName(storeName);
+  const { data, error } = await supabase
+    .from(table)
+    .delete()
+    .eq('business_id', cloudProfile.businessId)
+    .eq('id', id)
+    .select('id');
+  if (error) throw error;
+  if (data?.length) return;
+  const { data: remaining, error: readError } = await supabase
+    .from(table)
+    .select('id')
+    .eq('business_id', cloudProfile.businessId)
+    .eq('id', id);
+  if (readError) throw readError;
+  if (remaining?.length) throw new Error('supabase catalog deletion policy needs updating');
+}
+
+export async function removeCatalogItem(storeName: CatalogStore, id: string) {
+  await deleteLocal(storeName, id);
+  await clearQueuedEntityChanges(storeName, id);
+  if (!cloudActive()) return;
+  const value = { id };
+  if (!navigator.onLine) { await queue(storeName, 'delete', value); return; }
+  try { await cloudWriteTimeout(deleteCloudCatalogItem(storeName, id)); }
+  catch (error) {
+    await queue(storeName, 'delete', value);
+    console.warn('catalog deletion is waiting to sync', error);
+  }
+}
+
 async function createCloudOrder(order: Order) {
   if (!supabase) throw new Error('supabase is not connected');
   const { data, error } = await supabase.rpc('create_pos_order', { p_order: order });
@@ -313,11 +357,13 @@ export async function flushOutbox() {
     try {
       if (record.operation === 'create-order') await createCloudOrder(record.value as Order);
       else if (record.operation === 'inventory-adjustment') await applyCloudInventoryAdjustment(record.value as InventoryAdjustment);
+      else if (record.operation === 'delete') await deleteCloudCatalogItem(record.storeName as CatalogStore, (record.value as { id: string }).id);
       else await upsertCloud(record.storeName, record.value);
       await deleteLocal('outbox', record.id);
       synced += 1;
     } catch (error) {
       if (isOfflineFailure(error)) break;
+      if (record.operation === 'delete') { console.warn('catalog deletion is waiting for server permission', error); continue; }
       throw error;
     }
   }
