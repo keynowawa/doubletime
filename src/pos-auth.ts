@@ -112,12 +112,23 @@ export function watchAuth(callback: (event: AuthChangeEvent, session: Session | 
   return () => data.subscription.unsubscribe();
 }
 
-export function watchBusinessChanges(callback: () => void) {
+export function watchBusinessChanges(callback: () => void | Promise<void>) {
   if (!supabase) return () => undefined;
   let timer = 0;
+  let running = false;
+  let rerun = false;
+  const run = async () => {
+    if (running) { rerun = true; return; }
+    running = true;
+    try { await callback(); }
+    finally {
+      running = false;
+      if (rerun) { rerun = false; schedule(); }
+    }
+  };
   const schedule = () => {
     clearTimeout(timer);
-    timer = window.setTimeout(callback, 350);
+    timer = window.setTimeout(() => { void run(); }, 350);
   };
   const channel: RealtimeChannel = supabase
     .channel('doubletime-pos-sync')

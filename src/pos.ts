@@ -417,8 +417,20 @@ function renderOrderModal(order: Order) {
   return `<div class="modal-layer"><section class="modal-card order-detail">${modalHead(`order #${String(order.number).padStart(3, '0')}`, `${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()} · ${paymentLabel(order.paymentMethod)}`)}<div class="order-detail-status"><span class="status-pill ${order.status}">${order.status}</span><strong>${money.format(order.total)}</strong></div><div class="detail-lines">${order.lines.map((line) => `<div><span><strong>${line.quantity}× ${esc(line.product.name)}</strong><small>${line.modifiers.map((item) => esc(item.name)).join(' · ') || 'no add-ons'}</small></span><strong>${money.format(lineUnitPrice(line) * line.quantity)}</strong></div>`).join('')}</div>${order.customerName || order.note ? `<div class="order-memo"><span>${esc(order.customerName || 'walk-in')}</span><p>${esc(order.note || 'no order note')}</p></div>` : ''}<div class="detail-totals"><div><span>subtotal</span><strong>${money.format(order.subtotal)}</strong></div>${order.discount ? `<div><span>${esc(order.discountLabel)}</span><strong>−${money.format(order.discount)}</strong></div>` : ''}${order.tax ? `<div><span>${esc(order.taxName)}</span><strong>${money.format(order.tax)}</strong></div>` : ''}<div><span>total</span><strong>${money.format(order.total)}</strong></div></div>${order.status === 'completed' ? `<div class="order-fix"><p>need to fix this sale? enter the manager pin.</p><div><input id="order-pin" inputmode="numeric" type="password" placeholder="manager pin"><button data-order-status="refunded">refund</button><button data-order-status="voided">void</button></div></div>` : ''}</section></div>`;
 }
 
+const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sold-out],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list]';
+const catalogTouchSelector = '[data-action="new-product"],[data-action="new-modifier"],[data-action="new-price-list"],[data-catalog-tab],[data-edit-product],[data-edit-modifier],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list]';
+
+app.addEventListener('touchend', (event) => {
+  if (!(event.target instanceof Element)) return;
+  const target = event.target.closest<HTMLElement>(catalogTouchSelector);
+  if (!target) return;
+  event.preventDefault();
+  target.click();
+}, { passive: false });
+
 app.addEventListener('click', async (event) => {
-  const target = (event.target as HTMLElement).closest<HTMLElement>('[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sold-out],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list]');
+  if (!(event.target instanceof Element)) return;
+  const target = event.target.closest<HTMLElement>(interactiveSelector);
   if (!target) return;
 
   if (target.dataset.view) { const requested = target.dataset.view as View; if (!canOpenView(requested)) { toast('owner access required'); return; } view = requested; modal = ''; render(); return; }
@@ -751,14 +763,29 @@ async function installApp() {
 
 async function refreshData() { [products, modifiers, priceLists, orders, settings] = await Promise.all([getProducts(), getModifiers(), getPriceLists(), getOrders(), getSettings()]); }
 
+async function retry<T>(operation: () => Promise<T>, attempts = 2): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try { return await operation(); }
+    catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) await new Promise((resolve) => window.setTimeout(resolve, 450));
+    }
+  }
+  throw lastError;
+}
+
 async function activateCloudSession() {
-  const profile = await getCurrentProfile();
+  const profile = await retry(getCurrentProfile);
   if (!profile || !profile.active) throw new Error('this account does not have active doubletime access');
   currentProfile = profile;
   connectCloud(profile);
-  if (navigator.onLine) await syncFromCloud();
+  if (navigator.onLine) {
+    try { await retry(syncFromCloud); }
+    catch (error) { console.warn('cloud sync will retry when the connection settles', error); }
+  }
   await refreshData();
-  businessProfiles = profile.role === 'owner' && navigator.onLine ? await getBusinessProfiles() : [];
+  businessProfiles = profile.role === 'owner' && navigator.onLine ? await getBusinessProfiles().catch(() => []) : [];
   stopBusinessWatcher?.();
   stopBusinessWatcher = watchBusinessChanges(async () => {
     try { await syncFromCloud(); await refreshData(); render(); } catch { /* keep the last good local copy */ }

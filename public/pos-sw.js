@@ -1,4 +1,4 @@
-const CACHE_NAME = 'doubletime-pos-v7';
+const CACHE_NAME = 'doubletime-pos-v8';
 const APP_SHELL = [
   '/pos/',
   '/pos-manifest.webmanifest',
@@ -39,7 +39,7 @@ self.addEventListener('fetch', (event) => {
         if (response.ok && (event.request.mode === 'navigate' || url.pathname.startsWith('/assets/') || url.pathname === '/pos-manifest.webmanifest')) {
           const copy = response.clone();
           const cacheKey = event.request.mode === 'navigate' ? '/pos/' : event.request;
-          event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, copy)));
+          caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, copy)).catch(() => undefined);
         }
         return response;
       })
