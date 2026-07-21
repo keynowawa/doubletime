@@ -61,6 +61,6 @@ export default defineConfig(({ command, mode }) => {
         }
       },
     }] : [],
-    build: { outDir: 'dist', emptyOutDir: true, rollupOptions: { input } },
+    build: { target: 'safari13', outDir: 'dist', emptyOutDir: true, rollupOptions: { input } },
   };
 });

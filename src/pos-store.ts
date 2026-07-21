@@ -93,7 +93,8 @@ export function connectCloud(profile: PosProfile | null) { cloudProfile = profil
 export function usingCloud() { return cloudActive(); }
 
 async function queue(storeName: EntityStore, operation: CloudOperation, value: unknown) {
-  const id = `${operation}:${storeName}:${(value as { id?: string }).id || crypto.randomUUID()}`;
+  const fallbackId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const id = `${operation}:${storeName}:${(value as { id?: string }).id || globalThis.crypto?.randomUUID?.() || fallbackId}`;
   await putLocal<OutboxRecord>('outbox', { id, storeName, operation, value, queuedAt: new Date().toISOString() });
 }
 

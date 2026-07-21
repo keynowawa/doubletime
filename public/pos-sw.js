@@ -1,4 +1,4 @@
-const CACHE_NAME = 'doubletime-pos-v6';
+const CACHE_NAME = 'doubletime-pos-v7';
 const APP_SHELL = [
   '/pos/',
   '/pos-manifest.webmanifest',
@@ -12,18 +12,11 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(APP_SHELL);
-    const page = await fetch('/pos/');
-    const html = await page.clone().text();
-    await cache.put('/pos/', page);
-    const linkedFiles = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
-      .map((match) => match[1])
-      .filter((url) => url.startsWith('/assets/'));
-    await cache.addAll(linkedFiles);
-  })());
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => Promise.all(APP_SHELL.map((url) => cache.add(url).catch(() => undefined))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -37,13 +30,16 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        if (response.ok) {
+        if (response.ok && (event.request.mode === 'navigate' || url.pathname.startsWith('/assets/') || url.pathname === '/pos-manifest.webmanifest')) {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          const cacheKey = event.request.mode === 'navigate' ? '/pos/' : event.request;
+          event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, copy)));
         }
         return response;
       })

@@ -62,6 +62,9 @@ const canOpenView = (requested: View) => isOwner() || requested === 'sell' || re
 const profileInitials = () => (currentProfile?.displayName || currentProfile?.email || 'local').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toLowerCase();
 
 const uid = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const clone = <T>(value: T): T => typeof globalThis.structuredClone === 'function'
+  ? globalThis.structuredClone(value)
+  : JSON.parse(JSON.stringify(value)) as T;
 const esc = (value: unknown) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]!);
 const activePriceList = () => priceLists.find((item) => item.id === settings.activePriceListId && !item.archived) || priceLists.find((item) => !item.archived);
 const currentPrice = (product: Product) => activePriceList()?.prices[product.id] ?? product.price;
@@ -587,7 +590,7 @@ function addToCart() {
   const signature = `${activeProduct.id}:${selected.map((item) => item.id).sort().join(',')}`;
   const existing = cart.find((line) => line.id === signature);
   if (existing) existing.quantity += 1;
-  else cart.push({ id: signature, product: structuredClone(activeProduct), modifiers: structuredClone(selected), unitPrice: currentPrice(activeProduct) + selected.reduce((sum, item) => sum + item.price, 0), quantity: 1 });
+  else cart.push({ id: signature, product: clone(activeProduct), modifiers: clone(selected), unitPrice: currentPrice(activeProduct) + selected.reduce((sum, item) => sum + item.price, 0), quantity: 1 });
   modal = ''; render();
 }
 
@@ -644,7 +647,7 @@ async function completeSale() {
   const amount = totals();
   if (paymentMethod === 'cash' && Number(cashReceived) < amount.total) return;
   const selectedPriceList = activePriceList();
-  const order: Order = { id: uid(), number: settings.nextOrderNumber, createdAt: new Date().toISOString(), status: 'completed', paymentMethod, priceListId: selectedPriceList?.id, priceListName: selectedPriceList?.name, customerName: customerName.trim(), note: orderNote.trim(), lines: structuredClone(cart), subtotal: amount.subtotal, discount: amount.discount, discountLabel: discount?.label || '', tax: amount.tax, taxName: settings.taxEnabled ? settings.taxName : '', total: amount.total, createdBy: currentProfile?.id, createdByName: currentProfile?.displayName, ...(paymentMethod === 'cash' ? { cashReceived: Number(cashReceived) } : {}) };
+  const order: Order = { id: uid(), number: settings.nextOrderNumber, createdAt: new Date().toISOString(), status: 'completed', paymentMethod, priceListId: selectedPriceList?.id, priceListName: selectedPriceList?.name, customerName: customerName.trim(), note: orderNote.trim(), lines: clone(cart), subtotal: amount.subtotal, discount: amount.discount, discountLabel: discount?.label || '', tax: amount.tax, taxName: settings.taxEnabled ? settings.taxName : '', total: amount.total, createdBy: currentProfile?.id, createdByName: currentProfile?.displayName, ...(paymentMethod === 'cash' ? { cashReceived: Number(cashReceived) } : {}) };
   const savedOrder = await createOrder(order);
   latestOrder = savedOrder; cart = []; discount = null; customerName = ''; orderNote = ''; cashReceived = '';
   if (usingCloud() && navigator.onLine) await syncFromCloud();
@@ -673,7 +676,7 @@ async function savePriceList(data: FormData) {
 }
 
 async function usePriceList(id: string) { settings.activePriceListId = id; await save('settings', settings); await refreshData(); modal = ''; render(); toast(`${activePriceList()?.name} is now active`); }
-async function duplicatePriceList(id: string) { const source = priceLists.find((item) => item.id === id); if (!source) return; const copy: PriceList = { ...structuredClone(source), id: uid(), name: `${source.name} copy`, createdAt: new Date().toISOString() }; await save('priceLists', copy); await refreshData(); editingPriceList = priceLists.find((item) => item.id === copy.id)!; modal = 'price-list'; render(); }
+async function duplicatePriceList(id: string) { const source = priceLists.find((item) => item.id === id); if (!source) return; const copy: PriceList = { ...clone(source), id: uid(), name: `${source.name} copy`, createdAt: new Date().toISOString() }; await save('priceLists', copy); await refreshData(); editingPriceList = priceLists.find((item) => item.id === copy.id)!; modal = 'price-list'; render(); }
 async function archivePriceList(id: string) { const item = priceLists.find((list) => list.id === id); if (!item || item.id === settings.activePriceListId || priceLists.filter((list) => !list.archived).length < 2) return; item.archived = true; await save('priceLists', item); await refreshData(); render(); toast('price list removed'); }
 
 async function saveModifier(data: FormData) {
@@ -786,7 +789,9 @@ function startAuthWatcher() {
 window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); deferredInstallPrompt = event; if (view === 'settings') render(); });
 window.addEventListener('online', async () => { try { if (usingCloud()) { await flushOutbox(); await syncFromCloud(); await refreshData(); } render(); } catch { render(); } });
 window.addEventListener('offline', render);
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/pos-sw.js', { scope: __POS_BASE__ }));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => {
+  window.setTimeout(() => navigator.serviceWorker.register('/pos-sw.js', { scope: __POS_BASE__, updateViaCache: 'none' }).catch(() => undefined), 1200);
+});
 
 async function start() {
   app.innerHTML = `<div class="loading-screen">${brandMark()}<p>getting the good cups ready…</p></div>`;

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/pos.ts",
+    "src/pos-auth.ts",
+    "src/pos-store.ts",
+    "src/pos-types.ts",
+    "src/vite-env.d.ts"
+  ]
+}
