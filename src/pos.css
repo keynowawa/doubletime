@@ -361,17 +361,21 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
   .modifier-grid,.checkbox-grid,.payment-options{grid-template-columns:1fr}
 }
 
-/* iPad status dock: visible, predictable, and separate from the product grid */
+/* iPad utility dock: standard bell action + quiet connection state */
 @media(min-width:821px){
-  .app-nav>.global-status-stack{position:static;left:auto;bottom:auto;width:100%;margin:0 0 8px;display:grid;grid-template-columns:1fr;gap:6px;align-items:stretch}
-  .app-nav>.global-status-stack .global-notification-button,.app-nav>.global-status-stack .global-sync-badge{position:relative;width:100%;min-height:40px;padding:0 7px;border-radius:13px;justify-content:center;gap:5px;font-size:8px;font-weight:800;box-shadow:0 7px 18px rgba(8,22,43,.17)}
-  .app-nav>.global-status-stack .global-notification-button{border:1px solid rgba(255,255,255,.7);background:var(--paper);color:var(--navy)}
-  .app-nav>.global-status-stack .global-notification-button.has-unread{border-color:var(--matcha);background:var(--matcha);color:#18230d}
-  .app-nav>.global-status-stack .global-notification-button span{display:inline}
-  .app-nav>.global-status-stack .global-notification-button strong{position:absolute;right:-4px;top:-5px;border:2px solid var(--navy);background:#fff;color:var(--navy)}
-  .app-nav>.global-status-stack .global-sync-badge{border:1px solid #c5d693;background:#dce8bc;color:#31451a}
-  .app-nav>.global-status-stack .global-sync-badge.offline{border-color:#dca99f;background:#f2dcd7;color:#873f34}
-  .app-nav>.global-status-stack .global-sync-badge.syncing{border-color:#c5d693;background:#edf3df;color:#526b27}
+  .app-nav>.global-status-stack{position:static;left:auto;bottom:auto;width:100%;margin:0 0 10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.11);display:grid;grid-template-columns:1fr;gap:6px;align-items:stretch}
+  .app-nav>.global-status-stack .global-notification-button{position:relative;width:100%;min-height:40px;padding:0;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.075);color:rgba(255,255,255,.86);box-shadow:none;justify-content:center;transition:background .16s ease,border-color .16s ease,color .16s ease}
+  .app-nav>.global-status-stack .global-notification-button:hover{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.12);color:#fff}
+  .app-nav>.global-status-stack .global-notification-button.has-unread{border-color:rgba(155,185,90,.38);background:rgba(155,185,90,.15);color:#e6efcf}
+  .app-nav>.global-status-stack .global-notification-button span{display:none}
+  .app-nav>.global-status-stack .global-notification-button strong{position:absolute;right:9px;top:7px;min-width:15px;height:15px;padding:0 3px;border:2px solid var(--navy);background:var(--matcha);color:#1a280e;font-size:7px}
+  .app-nav>.global-status-stack .global-sync-badge{position:relative;width:100%;min-height:22px;padding:0;border:0;border-radius:0;background:transparent;color:rgba(255,255,255,.68);box-shadow:none;justify-content:center;gap:6px;font-size:8px;font-weight:700}
+  .app-nav>.global-status-stack .global-sync-badge:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--matcha);box-shadow:0 0 0 3px rgba(155,185,90,.11);flex:0 0 auto}
+  .app-nav>.global-status-stack .global-sync-badge.offline{background:transparent;color:#e6b9b0}
+  .app-nav>.global-status-stack .global-sync-badge.offline:before{background:#d07565;box-shadow:0 0 0 3px rgba(208,117,101,.12)}
+  .app-nav>.global-status-stack .global-sync-badge.syncing{background:transparent;color:#dce8bf}
+  .app-nav>.global-status-stack .global-sync-badge.syncing:before{animation:sync-pulse 1s ease-in-out infinite}
   .app-nav>.global-status-stack .global-sync-badge small{display:none}
-  .app-nav>.global-status-stack svg{width:13px;height:13px;flex:0 0 auto}
+  .app-nav>.global-status-stack .global-sync-badge svg{display:none}
+  .app-nav>.global-status-stack .global-notification-button svg{width:16px;height:16px;flex:0 0 auto}
 }
