@@ -229,3 +229,6 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
 
 /* equal editor actions */
 .editor-actions{align-items:center}.editor-actions .danger-button,.editor-actions .modal-primary{height:52px;min-height:52px;margin:0;padding:0 18px;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:10px;font-weight:800;line-height:1}.editor-actions .danger-button svg,.editor-actions .modal-primary svg{width:15px;height:15px;flex:0 0 auto}.editor-actions.paired>button{flex:1;min-width:0}
+
+/* centered sign-in and receipt confirmation actions */
+.auth-card{text-align:center}.auth-card>.brand-mark{margin-left:auto;margin-right:auto}.auth-card .eyebrow,.auth-card h1,.auth-card .auth-intro{ text-align:center}.auth-card .auth-intro{margin-left:auto;margin-right:auto}.auth-card form label>span{text-align:center;margin-left:0}.auth-card input{text-align:center}.auth-card .modal-primary{justify-content:center;gap:8px;text-align:center}.auth-card .modal-primary svg{width:16px;height:16px;flex:0 0 auto}.auth-card .auth-sent{grid-template-columns:1fr;text-align:center}.auth-card .auth-sent>svg{margin:0 auto}.auth-card .secondary-button.wide{justify-content:center}.receipt-card>.modal-primary{justify-content:center;text-align:center}
