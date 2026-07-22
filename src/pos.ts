@@ -244,7 +244,7 @@ function renderSyncBadge() {
   const detail = pendingSyncCount ? `${pendingSyncCount} pending` : '';
   const notifications = buildNotifications();
   const unread = notifications.filter((item) => !item.read).length;
-  const bell = `<button class="global-notification-button ${unread ? 'has-unread' : ''}" data-action="open-notifications" aria-label="notifications${unread ? `, ${unread} unread` : ''}"><i data-lucide="bell"></i>${unread ? `<strong>${unread > 99 ? '99+' : unread}</strong>` : ''}<span>notifications</span></button>`;
+  const bell = `<button class="global-notification-button ${unread ? 'has-unread' : ''}" data-action="open-notifications" aria-label="notifications${unread ? `, ${unread} unread` : ''}"><i data-lucide="bell"></i>${unread ? `<strong>${unread > 99 ? '99+' : unread}</strong>` : ''}<span>alerts</span></button>`;
   return `<div class="global-status-stack">${bell}<div class="global-sync-badge ${state}" role="status" aria-label="${label}${detail ? `, ${detail}` : ''}"><i data-lucide="${state === 'offline' ? 'wifi-off' : 'cloud'}"></i><span>${label}</span>${detail ? `<small>${detail}</small>` : ''}</div></div>`;
 }
 
@@ -267,10 +267,11 @@ function render() {
     <aside class="app-nav">
       ${brandMark()}
       <nav>${navItem('sell', 'sell', 'shopping-cart')}${ownerNavigation}${navItem('orders', 'orders', 'receipt-text')}${ownerManagement}</nav>
+      ${renderSyncBadge()}
       <button class="account-nav" data-action="open-account" aria-label="account"><span>${profileInitials()}</span><small>${currentProfile?.role || 'local'}</small></button>
     </aside>
     <section class="view-stage">${renderView()}</section>
-  </div>${renderSyncBadge()}${renderModal()}<div class="toast" id="toast" role="status"></div>`;
+  </div>${renderModal()}<div class="toast" id="toast" role="status"></div>`;
   hydrateIcons();
 }
 
