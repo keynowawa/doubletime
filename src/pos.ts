@@ -128,6 +128,13 @@ function hydrateIcons() {
   createIcons({ icons: { Archive, Banknote, Bell, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings: SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X }, attrs: { 'stroke-width': '1.8', 'aria-hidden': 'true' } });
 }
 
+function renderBackgroundState() {
+  if (!modal) { render(); return; }
+  const status = document.querySelector<HTMLElement>('.global-status-stack');
+  if (status) status.outerHTML = renderSyncBadge();
+  hydrateIcons();
+}
+
 function render() {
   if (!canOpenView(view)) view = 'sell';
   const ownerNavigation = isOwner() ? `${navItem('dashboard', 'insights', 'chart-no-axes-combined')}` : '';
@@ -1167,8 +1174,8 @@ async function activateCloudSession() {
   stopBusinessWatcher?.();
   stopBusinessWatcher = watchBusinessChanges(async () => {
     if (!navigator.onLine) return;
-    try { syncPhase = 'syncing'; render(); await syncFromCloud(); await refreshData(); syncPhase = 'online'; render(); }
-    catch { syncPhase = navigator.onLine ? 'online' : 'offline'; render(); }
+    try { syncPhase = 'syncing'; renderBackgroundState(); await syncFromCloud(); await refreshData(); syncPhase = 'online'; renderBackgroundState(); }
+    catch { syncPhase = navigator.onLine ? 'online' : 'offline'; renderBackgroundState(); }
   });
 }
 
@@ -1188,7 +1195,7 @@ function renderOfflineAccessNeeded() {
 }
 
 async function reconnectAndSync() {
-  syncPhase = 'syncing'; render();
+  syncPhase = 'syncing'; renderBackgroundState();
   try {
     const profile = await retry(getCurrentProfile);
     if (!profile || !profile.active) {
@@ -1198,10 +1205,10 @@ async function reconnectAndSync() {
     currentProfile = profile; connectCloud(profile); await cacheOfflineAccess(profile);
     await syncFromCloud(); await refreshData();
     businessProfiles = profile.role === 'owner' ? await getBusinessProfiles().catch(() => []) : [];
-    syncPhase = 'online'; render();
+    syncPhase = 'online'; renderBackgroundState();
   } catch (error) {
     syncPhase = navigator.onLine ? 'online' : 'offline';
-    await refreshData(); render();
+    await refreshData(); renderBackgroundState();
     toast(readableError(error, 'sync will retry when the connection settles'));
   }
 }
@@ -1228,9 +1235,9 @@ function startAuthWatcher() {
   });
 }
 
-window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); deferredInstallPrompt = event; if (view === 'settings') render(); });
+window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); deferredInstallPrompt = event; if (view === 'settings') renderBackgroundState(); });
 window.addEventListener('online', async () => { if (currentProfile) await reconnectAndSync(); else await start(); });
-window.addEventListener('offline', () => { syncPhase = 'offline'; render(); });
+window.addEventListener('offline', () => { syncPhase = 'offline'; renderBackgroundState(); });
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   window.setTimeout(() => navigator.serviceWorker.register('/pos-sw.js', { scope: __POS_BASE__, updateViaCache: 'none' }).catch(() => undefined), 1200);
 });
