@@ -386,9 +386,15 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
 
 /* lock the landscape iPad canvas while preserving its internal scroll areas */
 @media(min-width:821px){
-  html,body,#pos-app{height:100dvh;min-height:100dvh;max-height:100dvh;overflow:hidden;background:var(--navy)}
-  .app-shell,.view-stage{height:100dvh;min-height:0}
+  html,body,#pos-app{height:100vh;min-height:100vh;max-height:100vh;overflow:hidden;background:var(--navy)}
+  .app-shell,.view-stage{height:100vh;min-height:0}
   .view-stage{background:var(--cream)}
   .app-nav{touch-action:none;overscroll-behavior:none}
   .product-grid,.cart-scroll,.page{overscroll-behavior:contain}
+}
+
+/* reduce large composited layers on touch-only iPads */
+@media(min-width:821px) and (hover:none) and (pointer:coarse){
+  .modal-layer{-webkit-backdrop-filter:none;backdrop-filter:none}
+  .product-image img{filter:none}
 }

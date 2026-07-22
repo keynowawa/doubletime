@@ -94,6 +94,13 @@ async function replaceLocal<T>(storeName: EntityStore, values: T[]) {
 
 const cloudActive = () => Boolean(isCloudConfigured && supabase && cloudProfile);
 const tableName = (storeName: EntityStore) => ({ products: 'products', modifiers: 'modifiers', priceLists: 'price_lists', orders: 'orders', settings: 'business_settings' })[storeName];
+const compactOrder = (order: Order): Order => ({
+  ...order,
+  lines: (order.lines || []).map((line) => ({
+    ...line,
+    product: { ...line.product, image: '' },
+  })),
+});
 const isOfflineFailure = (error: unknown) => !navigator.onLine || error instanceof TypeError || /network|fetch|offline/i.test(error instanceof Error ? error.message : String(error));
 const cloudWriteTimeout = <T>(operation: PromiseLike<T>, milliseconds = 10000) => new Promise<T>((resolve, reject) => {
   const timeout = window.setTimeout(() => reject(new TypeError('cloud sync timed out')), milliseconds);
@@ -217,7 +224,8 @@ async function upsertCloud(storeName: EntityStore, originalValue: unknown) {
     return payload;
   }
   if (storeName === 'orders') {
-    const order = value as unknown as Order;
+    const order = compactOrder(value as unknown as Order);
+    await putLocal('orders', order);
     const { error } = await supabase.from('orders').upsert({
       business_id: cloudProfile.businessId,
       id: order.id,
@@ -299,9 +307,10 @@ export async function removeCatalogItem(storeName: CatalogStore, id: string) {
 
 async function createCloudOrder(order: Order) {
   if (!supabase) throw new Error('supabase is not connected');
-  const { data, error } = await supabase.rpc('create_pos_order', { p_order: order });
+  const compact = compactOrder(order);
+  const { data, error } = await supabase.rpc('create_pos_order', { p_order: compact });
   if (error) throw error;
-  const saved = data as Order;
+  const saved = compactOrder(data as Order);
   await putLocal('orders', saved);
   return saved;
 }
@@ -334,12 +343,13 @@ export async function adjustProductStock(productId: string, delta: number, reaso
 }
 
 export async function createOrder(order: Order) {
+  const compact = compactOrder(order);
   if (cloudActive() && navigator.onLine) {
-    try { return await createCloudOrder(order); }
+    try { return await createCloudOrder(compact); }
     catch (error) { if (!isOfflineFailure(error)) throw error; }
   }
   const localSettings = await getSettings();
-  const provisional = { ...order, number: localSettings.nextOrderNumber, localReceiptCode: order.localReceiptCode || await reserveLocalReceiptCode(), syncStatus: 'pending' } as Order;
+  const provisional = { ...compact, number: localSettings.nextOrderNumber, localReceiptCode: compact.localReceiptCode || await reserveLocalReceiptCode(), syncStatus: 'pending' } as Order;
   await putLocal('orders', provisional);
   localSettings.nextOrderNumber += 1;
   await putLocal('settings', localSettings);
@@ -480,14 +490,14 @@ export async function syncFromCloud() {
     replaceLocal('products', (productResult.data || []).map((row) => row.payload as unknown as Product)),
     replaceLocal('modifiers', (modifierResult.data || []).map((row) => row.payload as unknown as Modifier)),
     replaceLocal('priceLists', (priceResult.data || []).map((row) => row.payload as unknown as PriceList)),
-    replaceLocal('orders', (orderResult.data || []).map((row) => row.payload as unknown as Order)),
+    replaceLocal('orders', (orderResult.data || []).map((row) => compactOrder(row.payload as unknown as Order))),
     replaceLocal('settings', [cloudSettings]),
   ]);
 }
 
 export async function getProducts() { return allLocal<Product>('products'); }
 export async function getModifiers() { return allLocal<Modifier>('modifiers'); }
-export async function getOrders() { return allLocal<Order>('orders'); }
+export async function getOrders() { return (await allLocal<Order>('orders')).map(compactOrder); }
 export async function getPriceLists() { return allLocal<PriceList>('priceLists'); }
 export async function getSettings() { return (await oneLocal<Settings>('settings', 'main'))!; }
 
