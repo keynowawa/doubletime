@@ -195,7 +195,9 @@ export function watchBusinessChanges(callback: () => void | Promise<void>) {
     .subscribe((status) => { if (status === 'SUBSCRIBED') schedule(); });
   const refreshWhenVisible = () => { if (document.visibilityState === 'visible') schedule(); };
   const refreshOnFocus = () => schedule();
-  const poll = window.setInterval(schedule, 12000);
+  const poll = window.setInterval(() => {
+    if (document.visibilityState === 'visible' && navigator.onLine) schedule();
+  }, 45000);
   document.addEventListener('visibilitychange', refreshWhenVisible);
   window.addEventListener('focus', refreshOnFocus);
   return () => {

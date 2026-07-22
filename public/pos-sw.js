@@ -1,4 +1,5 @@
-const CACHE_NAME = 'doubletime-pos-v13';
+const CACHE_NAME = 'doubletime-pos-v14';
+const POS_BUNDLE_PATTERN = /^\/assets\/pos-[^/]+\.(?:js|css)$/;
 const APP_SHELL = [
   '/pos/',
   '/pos-manifest.webmanifest',
@@ -30,26 +31,40 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+async function storeFreshResponse(cacheKey, response, pathname) {
+  const cache = await caches.open(CACHE_NAME);
+  if (POS_BUNDLE_PATTERN.test(pathname)) {
+    const extension = pathname.endsWith('.css') ? '.css' : '.js';
+    const keys = await cache.keys();
+    await Promise.all(keys.filter((request) => {
+      const cachedPath = new URL(request.url).pathname;
+      return POS_BUNDLE_PATTERN.test(cachedPath) && cachedPath.endsWith(extension) && cachedPath !== pathname;
+    }).map((request) => cache.delete(request)));
+  }
+  await cache.put(cacheKey, response);
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
+    (async () => {
+      try {
+        const response = await fetch(event.request);
         if (response.ok && (event.request.mode === 'navigate' || url.pathname.startsWith('/assets/') || url.pathname === '/pos-manifest.webmanifest')) {
           const copy = response.clone();
           const cacheKey = event.request.mode === 'navigate' ? '/pos/' : event.request;
-          caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, copy)).catch(() => undefined);
+          await storeFreshResponse(cacheKey, copy, url.pathname).catch(() => undefined);
         }
         return response;
-      })
-      .catch(async () => {
+      } catch {
         const cached = await caches.match(event.request);
         if (cached) return cached;
         if (event.request.mode === 'navigate') return caches.match('/pos/');
         return Response.error();
-      }),
+      }
+    })(),
   );
 });
