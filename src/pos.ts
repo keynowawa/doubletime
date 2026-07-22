@@ -440,13 +440,27 @@ function renderDiscountModal() {
 
 function renderPaymentModal() {
   const amount = totals();
+  return `<div class="modal-layer"><section class="modal-card payment-card">${modalHead('payment', `order ${nextOrderReference()} · ${money.format(amount.total)}`)}
+    <div class="payment-options">${paymentMethods.map((method) => `<button class="payment-option ${paymentMethod === method.id ? 'selected' : ''}" data-payment="${method.id}" aria-pressed="${paymentMethod === method.id}"><i><span data-lucide="${method.icon}"></span></i><span>${method.label}</span><small>${method.note}</small></button>`).join('')}</div>
+    <div id="payment-details">${renderPaymentDetails()}</div>
+  </section></div>`;
+}
+
+function renderPaymentDetails() {
+  const amount = totals();
   const received = Number(cashReceived) || 0;
   const change = Math.max(0, received - amount.total);
-  return `<div class="modal-layer"><section class="modal-card payment-card">${modalHead('payment', `order ${nextOrderReference()} · ${money.format(amount.total)}`)}
-    <div class="payment-options">${paymentMethods.map((method) => `<button class="payment-option ${paymentMethod === method.id ? 'selected' : ''}" data-payment="${method.id}"><i><span data-lucide="${method.icon}"></span></i><span>${method.label}</span><small>${method.note}</small></button>`).join('')}</div>
-    ${paymentMethod === 'cash' ? `<div class="cash-section"><label><span>cash received</span><div class="money-input"><b>₱</b><input id="cash-received" inputmode="decimal" value="${esc(cashReceived)}" placeholder="0.00"></div></label><div class="quick-cash">${quickCash(amount.total).map((value) => `<button data-cash="${value}">${money.format(value)}</button>`).join('')}</div><div class="change-row"><span>change</span><strong id="change-value">${money.format(change)}</strong></div></div>` : `<div class="payment-note">confirm the ${paymentLabel(paymentMethod)} payment before completing the sale.</div>`}
-    <button class="modal-primary" data-action="complete-sale" ${paymentMethod === 'cash' && received < amount.total ? 'disabled' : ''}><span>complete sale</span><strong>${money.format(amount.total)}</strong></button>
-  </section></div>`;
+  return `${paymentMethod === 'cash' ? `<div class="cash-section"><label><span>cash received</span><div class="money-input"><b>₱</b><input id="cash-received" inputmode="decimal" value="${esc(cashReceived)}" placeholder="0.00"></div></label><div class="quick-cash">${quickCash(amount.total).map((value) => `<button data-cash="${value}">${money.format(value)}</button>`).join('')}</div><div class="change-row"><span>change</span><strong id="change-value">${money.format(change)}</strong></div></div>` : `<div class="payment-note">confirm the ${paymentLabel(paymentMethod)} payment before completing the sale.</div>`}<button class="modal-primary" data-action="complete-sale" ${paymentMethod === 'cash' && received < amount.total ? 'disabled' : ''}><span>complete sale</span><strong>${money.format(amount.total)}</strong></button>`;
+}
+
+function updatePaymentModal() {
+  document.querySelectorAll<HTMLButtonElement>('[data-payment]').forEach((button) => {
+    const selected = button.dataset.payment === paymentMethod;
+    button.classList.toggle('selected', selected);
+    button.setAttribute('aria-pressed', String(selected));
+  });
+  const details = document.querySelector<HTMLElement>('#payment-details');
+  if (details) details.innerHTML = renderPaymentDetails();
 }
 
 function quickCash(total: number) { return [...new Set([Math.ceil(total / 50) * 50, Math.ceil(total / 100) * 100, 500, 1000])].filter((value) => value >= total).slice(0, 4); }
@@ -586,8 +600,16 @@ app.addEventListener('click', async (event) => {
   }
   if (target.dataset.quantity) { const index = Number(target.dataset.quantity); cart[index].quantity += Number(target.dataset.delta); if (cart[index].quantity < 1) cart.splice(index, 1); render(); return; }
   if (target.dataset.remove) { cart.splice(Number(target.dataset.remove), 1); render(); return; }
-  if (target.dataset.payment) { paymentMethod = target.dataset.payment as PaymentMethod; cashReceived = ''; render(); return; }
-  if (target.dataset.cash) { cashReceived = target.dataset.cash; render(); focusCash(); return; }
+  if (target.dataset.payment) { paymentMethod = target.dataset.payment as PaymentMethod; cashReceived = ''; updatePaymentModal(); if (paymentMethod === 'cash') focusCash(); return; }
+  if (target.dataset.cash) {
+    cashReceived = target.dataset.cash;
+    const input = document.querySelector<HTMLInputElement>('#cash-received');
+    if (input) input.value = cashReceived;
+    const change = Math.max(0, (Number(cashReceived) || 0) - totals().total);
+    const value = document.querySelector('#change-value'); if (value) value.textContent = money.format(change);
+    const button = document.querySelector<HTMLButtonElement>('[data-action="complete-sale"]'); if (button) button.disabled = (Number(cashReceived) || 0) < totals().total;
+    focusCash(); return;
+  }
   if (target.dataset.presetDiscount) { discount = { type: 'percent', value: Number(target.dataset.presetDiscount), label: `${target.dataset.presetDiscount}% off` }; modal = ''; render(); return; }
   if (target.dataset.order) { activeOrder = orders.find((item) => item.id === target.dataset.order)!; modal = 'order'; render(); return; }
   if (target.dataset.catalogTab) { catalogTab = target.dataset.catalogTab as 'products' | 'addons' | 'prices' | 'archive'; render(); return; }
