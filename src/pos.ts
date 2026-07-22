@@ -517,7 +517,7 @@ function renderSettings() {
       <form class="settings-card panel" id="security-settings"><div class="settings-title"><span><i data-lucide="settings"></i></span><div><h2>manager pin</h2><p>emergency offline approval only.</p></div></div><label><span>4–8 digit pin</span><input name="managerPin" inputmode="numeric" pattern="[0-9]{4,8}" value="${esc(settings.managerPin)}" placeholder="enter a new 4–8 digit pin" required></label><p class="pin-readiness ${settings.offlinePinVerifier ? 'ready' : ''}"><i data-lucide="${settings.offlinePinVerifier ? 'check' : 'wifi-off'}"></i><span>${settings.offlinePinVerifier ? 'offline fallback is ready on synced ipads' : 'save your current pin once to enable offline fallback'}</span></p><button class="secondary-button wide" type="submit">update pin</button></form>
       ${teamCard}
     </div>
-    <footer class="settings-signature">made for doubletime by kyann tagle</footer>
+    <footer class="creator-credit settings-signature">designed &amp; built by kyann tagle</footer>
   </div>`;
 }
 
@@ -540,7 +540,7 @@ function renderSignIn() {
   const access = signInSentTo
     ? `<div class="auth-sent"><i data-lucide="mail"></i><div><strong>check your email</strong><span>we sent a private sign-in link to ${esc(signInSentTo)}.</span></div></div><button class="secondary-button wide" data-action="change-sign-in-email">back to password sign in</button>`
     : `<form id="sign-in-form"><label><span>account email</span><input id="sign-in-email" name="email" type="email" autocomplete="email" placeholder="doubletime.ph@gmail.com" required autofocus></label><label><span>password</span><input name="password" type="password" autocomplete="current-password" minlength="8" placeholder="your account password" required></label><button class="modal-primary" type="submit"><span>sign in</span><i data-lucide="key-round"></i></button><button class="auth-link-button" type="button" data-action="email-sign-in-link"><i data-lucide="mail"></i><span>email me a sign-in link instead</span></button></form>`;
-  app.innerHTML = `<div class="auth-screen"><section class="auth-card">${brandMark()}<p class="eyebrow">your daily reward.</p><h1>sign in to doubletime</h1><p class="auth-intro">products, orders, and reports stay shared across every authorized ipad.</p>${access}<small class="auth-footnote">access is invite-only. each owner and staff member uses their own account.</small></section></div><div class="toast" id="toast" role="status"></div>`;
+  app.innerHTML = `<div class="auth-screen"><section class="auth-card">${brandMark()}<p class="eyebrow">your daily reward.</p><h1>sign in to doubletime</h1><p class="auth-intro">products, orders, and reports stay shared across every authorized ipad.</p>${access}<small class="auth-footnote">access is invite-only. each owner and staff member uses their own account.</small><footer class="creator-credit">designed &amp; built by kyann tagle</footer></section></div><div class="toast" id="toast" role="status"></div>`;
   hydrateIcons();
 }
 

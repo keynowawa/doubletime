@@ -380,4 +380,6 @@ button{touch-action:manipulation;-webkit-user-select:none;user-select:none}
   .app-nav>.global-status-stack .global-notification-button svg{width:16px;height:16px;flex:0 0 auto}
 }
 
-.settings-signature{display:flex;align-items:center;justify-content:center;min-height:46px;margin:8px 0 0;color:rgba(30,59,106,.36);font-size:8px;font-weight:650;letter-spacing:.055em;text-align:center}
+.creator-credit{color:rgba(30,59,106,.36);font-size:8px;font-weight:650;letter-spacing:.055em;text-align:center}
+.settings-signature{display:flex;align-items:center;justify-content:center;min-height:46px;margin:8px 0 0}
+.auth-card .creator-credit{margin:17px 0 -3px;padding-top:15px;border-top:1px solid rgba(30,59,106,.08)}
