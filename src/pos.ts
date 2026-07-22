@@ -1,6 +1,6 @@
 import './pos.css';
 import { strToU8, zipSync } from 'fflate';
-import { Archive, Banknote, Bell, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
+import { Archive, Banknote, Bell, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
 import { changePassword, createTeamAccount, getBusinessProfiles, getCurrentProfile, getSession, isCloudConfigured, resetTeamMemberPassword, sendSignInLink, signInWithPassword, signOut, updateTeamMemberActive, updateTeamMemberRole, watchAuth, watchBusinessChanges } from './pos-auth';
 import { OFFLINE_ACCESS_DAYS, adjustProductStock, cacheOfflineAccess, changeOrderStatus as persistOrderStatus, clearOfflineAccess, connectCloud, createOrder, exportBackup, getDeviceIdentity, getModifiers, getOfflineAccess, getOrderActionRequests, getOrders, getPendingSyncState, getPriceLists, getProducts, getSettings, importBackup, initializeStore, removeCatalogItem, requestOrderAction, reviewOrderAction, save, syncFromCloud, updateDeviceIdentity, updateManagerPin, usingCloud } from './pos-store';
 import type { CartLine, DeviceIdentity, Discount, Modifier, Order, OrderAction, OrderActionRequest, OrderStatus, PaymentMethod, PosProfile, PriceList, Product, Settings, UserRole } from './pos-types';
@@ -125,7 +125,7 @@ function renderSyncBadge() {
 }
 
 function hydrateIcons() {
-  createIcons({ icons: { Archive, Banknote, Bell, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings: SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X }, attrs: { 'stroke-width': '1.8', 'aria-hidden': 'true' } });
+  createIcons({ icons: { Archive, Banknote, Bell, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings: SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X }, attrs: { 'stroke-width': '1.8', 'aria-hidden': 'true' } });
 }
 
 function renderBackgroundState() {
@@ -316,7 +316,7 @@ function renderApprovals() {
   const pending = orderActionRequests.filter((request) => request.status === 'pending');
   const history = orderActionRequests.filter((request) => request.status !== 'pending');
   return `<div class="page approvals-page">
-    ${pageHeader('approvals', 'refund and void requests from your team.', '<button class="secondary-button" data-view="orders"><i data-lucide="chevron-right"></i><span>back to orders</span></button>')}
+    ${pageHeader('approvals', 'refund and void requests from your team.', '<button class="secondary-button approvals-back" data-view="orders"><i data-lucide="chevron-left"></i><span>back to orders</span></button>')}
     <section class="approval-section"><div class="approval-section-head"><div><h2>waiting for you</h2><p>review the order and reason before deciding.</p></div><span>${pending.length}</span></div>${pending.length ? `<div class="approval-list">${pending.map((request) => renderApprovalCard(request, true)).join('')}</div>` : emptyPanel('no requests need approval.', 'shield-check')}</section>
     <section class="approval-section history"><div class="approval-section-head"><div><h2>request history</h2><p>approved and declined requests stay here for accountability.</p></div><span>${history.length}</span></div>${history.length ? `<div class="approval-list">${history.map((request) => renderApprovalCard(request, false)).join('')}</div>` : emptyPanel('reviewed requests will appear here.', 'clock-3')}</section>
   </div>`;
