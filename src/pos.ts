@@ -517,6 +517,7 @@ function renderSettings() {
       <form class="settings-card panel" id="security-settings"><div class="settings-title"><span><i data-lucide="settings"></i></span><div><h2>manager pin</h2><p>emergency offline approval only.</p></div></div><label><span>4–8 digit pin</span><input name="managerPin" inputmode="numeric" pattern="[0-9]{4,8}" value="${esc(settings.managerPin)}" placeholder="enter a new 4–8 digit pin" required></label><p class="pin-readiness ${settings.offlinePinVerifier ? 'ready' : ''}"><i data-lucide="${settings.offlinePinVerifier ? 'check' : 'wifi-off'}"></i><span>${settings.offlinePinVerifier ? 'offline fallback is ready on synced ipads' : 'save your current pin once to enable offline fallback'}</span></p><button class="secondary-button wide" type="submit">update pin</button></form>
       ${teamCard}
     </div>
+    <footer class="settings-signature">made for doubletime by kyann tagle</footer>
   </div>`;
 }
 
