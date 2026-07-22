@@ -11,6 +11,7 @@ export type Product = {
   soldOut: boolean;
   trackStock?: boolean;
   stockQuantity?: number;
+  lowStockThreshold?: number;
   archived: boolean;
   createdAt: string;
 };

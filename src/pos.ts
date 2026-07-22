@@ -1,14 +1,28 @@
 import './pos.css';
 import { strToU8, zipSync } from 'fflate';
-import { Archive, Banknote, Bell, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
+import { Archive, Banknote, Bell, BellRing, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Package, PackageX, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, TriangleAlert, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
 import { changePassword, createTeamAccount, getBusinessProfiles, getCurrentProfile, getSession, isCloudConfigured, resetTeamMemberPassword, sendSignInLink, signInWithPassword, signOut, updateTeamMemberActive, updateTeamMemberRole, watchAuth, watchBusinessChanges } from './pos-auth';
 import { OFFLINE_ACCESS_DAYS, adjustProductStock, cacheOfflineAccess, changeOrderStatus as persistOrderStatus, clearOfflineAccess, connectCloud, createOrder, exportBackup, getDeviceIdentity, getModifiers, getOfflineAccess, getOrderActionRequests, getOrders, getPendingSyncState, getPriceLists, getProducts, getSettings, importBackup, initializeStore, removeCatalogItem, requestOrderAction, reviewOrderAction, save, syncFromCloud, updateDeviceIdentity, updateManagerPin, usingCloud } from './pos-store';
 import type { CartLine, DeviceIdentity, Discount, Modifier, Order, OrderAction, OrderActionRequest, OrderStatus, PaymentMethod, PosProfile, PriceList, Product, Settings, UserRole } from './pos-types';
 
-type View = 'sell' | 'dashboard' | 'orders' | 'approvals' | 'catalog' | 'settings';
+type View = 'sell' | 'dashboard' | 'orders' | 'approvals' | 'notifications' | 'catalog' | 'settings';
 type Modal = '' | 'modifiers' | 'discount' | 'payment' | 'receipt' | 'product' | 'modifier' | 'order' | 'price-list' | 'price-picker' | 'account' | 'delete-archive' | 'team-password' | 'request-action' | 'review-request';
 type ArchiveKind = 'product' | 'modifier' | 'priceList';
 type ArchiveDeleteTarget = { kind: ArchiveKind; id: string; name: string };
+type NotificationTarget = { kind: 'approval' | 'order' | 'product'; id: string };
+type AppNotification = {
+  id: string;
+  section: 'attention' | 'recent';
+  title: string;
+  message: string;
+  icon: 'bell-ring' | 'check' | 'package' | 'package-x' | 'x';
+  tone: 'navy' | 'green' | 'red' | 'gold';
+  createdAt: string;
+  target: NotificationTarget;
+  actionLabel: string;
+  read: boolean;
+};
+type NotificationMemory = { read: string[]; dismissed: string[] };
 
 const app = document.querySelector<HTMLElement>('#pos-app')!;
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -60,6 +74,7 @@ let orderActionRequests: OrderActionRequest[] = [];
 let requestedOrderAction: OrderAction = 'refunded';
 let reviewRequestTarget: OrderActionRequest | null = null;
 let reviewDecision: 'approved' | 'declined' = 'approved';
+let notificationReturnView: View = 'sell';
 
 const paymentMethods: { id: PaymentMethod; label: string; note: string; icon: string }[] = [
   { id: 'cash', label: 'cash', note: 'calculate change', icon: 'banknote' },
@@ -71,7 +86,7 @@ const paymentMethods: { id: PaymentMethod; label: string; note: string; icon: st
 ];
 const paymentLabel = (method: PaymentMethod) => paymentMethods.find((item) => item.id === method)?.label || method;
 const isOwner = () => !isCloudConfigured || currentProfile?.role === 'owner';
-const canOpenView = (requested: View) => isOwner() || requested === 'sell' || requested === 'orders';
+const canOpenView = (requested: View) => isOwner() || requested === 'sell' || requested === 'orders' || requested === 'notifications';
 const profileInitials = () => (currentProfile?.displayName || currentProfile?.email || 'local').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toLowerCase();
 const isPendingOrder = (order: Order) => pendingOrderIds.has(order.id);
 const orderReference = (order: Order) => isPendingOrder(order) && order.localReceiptCode ? order.localReceiptCode : `#${String(order.number).padStart(3, '0')}`;
@@ -79,6 +94,112 @@ const nextOrderReference = () => !navigator.onLine && deviceIdentity ? `${device
 const orderActionLabel = (action: OrderAction) => action === 'refunded' ? 'refund' : 'void';
 const pendingApprovalCount = () => orderActionRequests.filter((request) => request.status === 'pending').length;
 const requestsForOrder = (orderId: string) => orderActionRequests.filter((request) => request.orderId === orderId).sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
+
+function notificationStorageKey() {
+  return `doubletime-notifications:${currentProfile?.businessId || 'local'}:${currentProfile?.id || 'local'}`;
+}
+
+function notificationMemory(): NotificationMemory {
+  try {
+    const saved = JSON.parse(localStorage.getItem(notificationStorageKey()) || '{}') as Partial<NotificationMemory>;
+    return { read: Array.isArray(saved.read) ? saved.read : [], dismissed: Array.isArray(saved.dismissed) ? saved.dismissed : [] };
+  } catch {
+    return { read: [], dismissed: [] };
+  }
+}
+
+function saveNotificationMemory(memory: NotificationMemory) {
+  localStorage.setItem(notificationStorageKey(), JSON.stringify({ read: [...new Set(memory.read)].slice(-300), dismissed: [...new Set(memory.dismissed)].slice(-300) }));
+}
+
+function buildNotifications() {
+  const memory = notificationMemory();
+  const read = new Set(memory.read);
+  const dismissed = new Set(memory.dismissed);
+  const stockNotifications = products
+    .filter((product) => !product.archived && product.trackStock && (product.stockQuantity || 0) <= Math.max(1, product.lowStockThreshold || 5))
+    .map<AppNotification>((product) => {
+      const quantity = Math.max(0, product.stockQuantity || 0);
+      const empty = quantity === 0;
+      const id = `stock:${empty ? 'out' : 'low'}:${product.id}`;
+      return {
+        id,
+        section: 'attention',
+        title: empty ? `${product.name} is out of stock` : `${product.name} is running low`,
+        message: empty ? 'unavailable on the selling screen until stock is added.' : `${quantity} left · alert set at ${Math.max(1, product.lowStockThreshold || 5)}.`,
+        icon: empty ? 'package-x' : 'package',
+        tone: empty ? 'red' : 'gold',
+        createdAt: '',
+        target: { kind: 'product', id: product.id },
+        actionLabel: isOwner() ? 'manage stock' : 'view menu',
+        read: read.has(id),
+      };
+    });
+  const approvalNotifications = orderActionRequests.flatMap<AppNotification>((request) => {
+    const order = orders.find((item) => item.id === request.orderId);
+    const reference = order ? `order ${orderReference(order)}` : 'an order';
+    if (isOwner() && request.status === 'pending') {
+      const id = `approval:${request.id}`;
+      return [{
+        id,
+        section: 'attention',
+        title: `${orderActionLabel(request.action)} needs approval`,
+        message: `${request.requestedByName} requested a ${orderActionLabel(request.action)} for ${reference}.`,
+        icon: 'bell-ring',
+        tone: 'navy',
+        createdAt: request.requestedAt,
+        target: { kind: 'approval', id: request.id },
+        actionLabel: 'review request',
+        read: read.has(id),
+      }];
+    }
+    if (currentProfile?.role === 'staff' && request.requestedBy === currentProfile.id && request.status !== 'pending') {
+      const id = `approval-result:${request.id}:${request.status}`;
+      if (dismissed.has(id)) return [];
+      return [{
+        id,
+        section: 'recent',
+        title: `${orderActionLabel(request.action)} request ${request.status}`,
+        message: `${reference}${request.reviewedByName ? ` · reviewed by ${request.reviewedByName}` : ''}${request.reviewNote ? ` · ${request.reviewNote}` : ''}`,
+        icon: request.status === 'approved' ? 'check' : 'x',
+        tone: request.status === 'approved' ? 'green' : 'red',
+        createdAt: request.reviewedAt || request.requestedAt,
+        target: { kind: 'order', id: request.orderId },
+        actionLabel: 'view order',
+        read: read.has(id),
+      }];
+    }
+    return [];
+  });
+  return [...stockNotifications, ...approvalNotifications].sort((a, b) => {
+    if (a.section !== b.section) return a.section === 'attention' ? -1 : 1;
+    if (a.tone !== b.tone && a.section === 'attention') return a.tone === 'red' ? -1 : b.tone === 'red' ? 1 : 0;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+}
+
+function notificationTime(value: string) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return 'current stock status';
+  const elapsed = Date.now() - date.getTime();
+  if (elapsed < 60000) return 'just now';
+  if (elapsed < 3600000) return `${Math.max(1, Math.floor(elapsed / 60000))}m ago`;
+  if (elapsed < 86400000) return `${Math.floor(elapsed / 3600000)}h ago`;
+  return `${shortDate.format(date).toLowerCase()} · ${time.format(date).toLowerCase()}`;
+}
+
+function markNotificationsRead(ids: string[]) {
+  const memory = notificationMemory();
+  memory.read.push(...ids);
+  saveNotificationMemory(memory);
+}
+
+function reconcileStockNotificationMemory() {
+  const memory = notificationMemory();
+  const activeStockIds = new Set(buildNotifications().filter((item) => item.id.startsWith('stock:')).map((item) => item.id));
+  const nextRead = memory.read.filter((id) => !id.startsWith('stock:') || activeStockIds.has(id));
+  if (nextRead.length !== memory.read.length) saveNotificationMemory({ ...memory, read: nextRead });
+}
 
 const uid = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const clone = <T>(value: T): T => typeof globalThis.structuredClone === 'function'
@@ -120,12 +241,14 @@ function renderSyncBadge() {
   const state = !navigator.onLine ? 'offline' : syncPhase;
   const label = state === 'syncing' ? 'syncing' : state === 'offline' ? 'offline' : 'online';
   const detail = pendingSyncCount ? `${pendingSyncCount} pending` : '';
-  const approvals = isOwner() && pendingApprovalCount() ? `<button class="global-approval-badge" data-action="open-approvals" aria-label="${pendingApprovalCount()} approval request${pendingApprovalCount() === 1 ? '' : 's'}"><i data-lucide="bell"></i><strong>${pendingApprovalCount()}</strong><span>approval${pendingApprovalCount() === 1 ? '' : 's'}</span></button>` : '';
-  return `<div class="global-status-stack">${approvals}<div class="global-sync-badge ${state}" role="status" aria-label="${label}${detail ? `, ${detail}` : ''}"><i data-lucide="${state === 'offline' ? 'wifi-off' : 'cloud'}"></i><span>${label}</span>${detail ? `<small>${detail}</small>` : ''}</div></div>`;
+  const notifications = buildNotifications();
+  const unread = notifications.filter((item) => !item.read).length;
+  const bell = `<button class="global-notification-button ${unread ? 'has-unread' : ''}" data-action="open-notifications" aria-label="notifications${unread ? `, ${unread} unread` : ''}"><i data-lucide="bell"></i>${unread ? `<strong>${unread > 99 ? '99+' : unread}</strong>` : ''}<span>notifications</span></button>`;
+  return `<div class="global-status-stack">${bell}<div class="global-sync-badge ${state}" role="status" aria-label="${label}${detail ? `, ${detail}` : ''}"><i data-lucide="${state === 'offline' ? 'wifi-off' : 'cloud'}"></i><span>${label}</span>${detail ? `<small>${detail}</small>` : ''}</div></div>`;
 }
 
 function hydrateIcons() {
-  createIcons({ icons: { Archive, Banknote, Bell, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings: SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X }, attrs: { 'stroke-width': '1.8', 'aria-hidden': 'true' } });
+  createIcons({ icons: { Archive, Banknote, Bell, BellRing, ChartNoAxesCombined, Check, ChevronDown, ChevronLeft, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Package, PackageX, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings: SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, TriangleAlert, UserRound, UsersRound, WifiOff, X }, attrs: { 'stroke-width': '1.8', 'aria-hidden': 'true' } });
 }
 
 function renderBackgroundState() {
@@ -154,6 +277,7 @@ function renderView() {
   if (view === 'dashboard') return renderDashboard();
   if (view === 'orders') return renderOrders();
   if (view === 'approvals') return renderApprovals();
+  if (view === 'notifications') return renderNotifications();
   if (view === 'catalog') return renderCatalog();
   if (view === 'settings') return renderSettings();
   return renderSell();
@@ -322,6 +446,32 @@ function renderApprovals() {
   </div>`;
 }
 
+function renderNotificationCard(item: AppNotification) {
+  return `<article class="notification-card panel ${item.tone} ${item.read ? 'is-read' : 'is-unread'}">
+    <button class="notification-open" data-notification-target="${item.target.kind}:${esc(item.target.id)}" data-notification-id="${esc(item.id)}">
+      <span class="notification-icon"><i data-lucide="${item.icon}"></i></span>
+      <span class="notification-copy"><span><strong>${esc(item.title)}</strong>${item.read ? '' : '<i>new</i>'}</span><small>${esc(item.message)}</small><em>${notificationTime(item.createdAt)}</em></span>
+      <span class="notification-link">${esc(item.actionLabel)}<i data-lucide="chevron-right"></i></span>
+    </button>
+    ${item.read ? '' : `<button class="notification-read" data-notification-read="${esc(item.id)}" aria-label="mark ${esc(item.title)} as read"><i data-lucide="check"></i><span>mark read</span></button>`}
+  </article>`;
+}
+
+function renderNotifications() {
+  const notifications = buildNotifications();
+  const attention = notifications.filter((item) => item.section === 'attention');
+  const recent = notifications.filter((item) => item.section === 'recent');
+  const unread = notifications.filter((item) => !item.read).length;
+  const clearable = recent.some((item) => item.read);
+  const actions = `<div class="notification-header-actions"><button class="secondary-button notifications-back" data-action="close-notifications"><i data-lucide="chevron-left"></i><span>back</span></button><button class="secondary-button" data-action="mark-all-notifications-read" ${unread ? '' : 'disabled'}><i data-lucide="check"></i><span>mark all read</span></button></div>`;
+  return `<div class="page notifications-page">
+    ${pageHeader('notifications', 'only the things that need a little attention.', actions)}
+    <div class="notification-summary panel"><span><i data-lucide="bell"></i></span><div><strong>${unread ? `${unread} unread` : 'you’re all caught up'}</strong><small>orders update live without adding noise here.</small></div>${clearable ? '<button data-action="clear-read-notifications"><i data-lucide="trash-2"></i><span>clear read</span></button>' : ''}</div>
+    <section class="notification-section"><div class="notification-section-head"><div><h2>needs attention</h2><p>these stay here until the issue is resolved.</p></div><span>${attention.length}</span></div>${attention.length ? `<div class="notification-list">${attention.map(renderNotificationCard).join('')}</div>` : emptyPanel('nothing needs attention right now.', 'triangle-alert')}</section>
+    <section class="notification-section recent"><div class="notification-section-head"><div><h2>recent updates</h2><p>results for requests you sent.</p></div><span>${recent.length}</span></div>${recent.length ? `<div class="notification-list">${recent.map(renderNotificationCard).join('')}</div>` : emptyPanel('approval results will appear here.', 'clock-3')}</section>
+  </div>`;
+}
+
 function renderCatalog() {
   const activeProducts = products.filter((item) => !item.archived);
   const activeModifiers = modifiers.filter((item) => !item.archived);
@@ -484,7 +634,7 @@ function renderProductModal() {
     <input type="hidden" name="id" value="${esc(item?.id || '')}"><div class="two-fields"><label><span>product name</span><input name="name" value="${esc(item?.name || '')}" placeholder="e.g. strawberry cloud" required></label><label class="sku-field"><span>sku</span><input id="product-sku" name="sku" value="${esc(item?.sku || 'DT-')}" placeholder="e.g. DT-MAT-NEW" autocapitalize="characters" autocomplete="off" spellcheck="false" required><span class="sku-suggestions"><small>quick start</small><button type="button" data-sku-prefix="DT-MAT-" data-sku-target="product-sku">matcha</button><button type="button" data-sku-prefix="DT-COF-" data-sku-target="product-sku">coffee</button><button type="button" data-sku-prefix="DT-PAS-" data-sku-target="product-sku">pastry</button><button type="button" data-sku-prefix="DT-OTH-" data-sku-target="product-sku">other</button></span></label></div>
     <label><span>short description</span><input name="description" value="${esc(item?.description || '')}" placeholder="e.g. matcha with strawberry cream" required></label>
     <div class="two-fields"><label><span>category</span><input name="category" value="${esc(item?.category || 'matcha')}" placeholder="e.g. matcha" required></label><label><span>price</span><input name="price" type="number" min="0" step="1" value="${item ? currentPrice(item) : ''}" placeholder="0" required></label></div>
-    <div class="inventory-editor"><div class="two-fields"><label><span>availability</span><select name="availability"><option value="available" ${!item?.soldOut ? 'selected' : ''}>available</option><option value="unavailable" ${item?.soldOut ? 'selected' : ''}>unavailable</option></select></label><label><span>stock tracking</span><select name="trackStock" data-stock-tracking><option value="false" ${!item?.trackStock ? 'selected' : ''}>do not track</option><option value="true" ${item?.trackStock ? 'selected' : ''}>track stock</option></select></label></div><label class="stock-quantity-field ${item?.trackStock ? '' : 'disabled'}"><span>stock on hand</span><input name="stockQuantity" type="number" min="0" step="1" value="${item?.stockQuantity ?? 0}" placeholder="0" ${item?.trackStock ? '' : 'disabled'}></label></div>
+    <div class="inventory-editor"><div class="two-fields"><label><span>availability</span><select name="availability"><option value="available" ${!item?.soldOut ? 'selected' : ''}>available</option><option value="unavailable" ${item?.soldOut ? 'selected' : ''}>unavailable</option></select></label><label><span>stock tracking</span><select name="trackStock" data-stock-tracking><option value="false" ${!item?.trackStock ? 'selected' : ''}>do not track</option><option value="true" ${item?.trackStock ? 'selected' : ''}>track stock</option></select></label></div><div class="two-fields inventory-count-fields"><label class="stock-dependent-field ${item?.trackStock ? '' : 'disabled'}"><span>stock on hand</span><input name="stockQuantity" type="number" min="0" step="1" value="${item?.stockQuantity ?? 0}" placeholder="0" ${item?.trackStock ? '' : 'disabled'}></label><label class="stock-dependent-field ${item?.trackStock ? '' : 'disabled'}"><span>low stock alert at</span><input name="lowStockThreshold" type="number" min="1" step="1" value="${item?.lowStockThreshold ?? 5}" placeholder="5" ${item?.trackStock ? '' : 'disabled'}></label></div></div>
     <div class="product-image-field"><span class="product-image-label">product image</span><label class="image-upload" for="product-image-input">
       <input class="image-file-input" id="product-image-input" type="file" accept="image/*">
       <input id="product-image-value" type="hidden" name="image" value="${esc(image)}">
@@ -564,7 +714,7 @@ function renderOrderModal(order: Order) {
   return `<div class="modal-layer"><section class="modal-card order-detail">${modalHead(`order ${orderReference(order)}`, `${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()} · ${paymentLabel(order.paymentMethod)} · ${esc(order.deviceName || 'this ipad')}`)}<div class="order-detail-status"><span class="status-pill ${pending ? 'pending' : order.status}">${pending ? 'waiting to sync' : order.status}</span><strong>${money.format(order.total)}</strong></div><div class="detail-lines">${order.lines.map((line) => `<div><span><strong>${line.quantity}× ${esc(line.product.name)}</strong><small>${line.modifiers.map((item) => esc(item.name)).join(' · ') || 'no add-ons'}</small></span><strong>${money.format(lineUnitPrice(line) * line.quantity)}</strong></div>`).join('')}</div>${order.customerName || order.note ? `<div class="order-memo"><span>${esc(order.customerName || 'walk-in')}</span><p>${esc(order.note || 'no order note')}</p></div>` : ''}<div class="detail-totals"><div><span>subtotal</span><strong>${money.format(order.subtotal)}</strong></div>${order.discount ? `<div><span>${esc(order.discountLabel)}</span><strong>−${money.format(order.discount)}</strong></div>` : ''}${order.tax ? `<div><span>${esc(order.taxName)}</span><strong>${money.format(order.tax)}</strong></div>` : ''}<div><span>total</span><strong>${money.format(order.total)}</strong></div></div>${renderOrderActionControls(order, pending)}</section></div>`;
 }
 
-const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sell-category],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-order-status],[data-request-action],[data-review-request],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive],[data-team-password],[data-team-active],[data-sku-prefix]';
+const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sell-category],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-order-status],[data-request-action],[data-review-request],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive],[data-team-password],[data-team-active],[data-sku-prefix],[data-notification-target],[data-notification-read]';
 const catalogTouchSelector = '[data-action="new-product"],[data-action="new-modifier"],[data-action="new-price-list"],[data-catalog-tab],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive]';
 
 app.addEventListener('touchend', (event) => {
@@ -593,6 +743,27 @@ app.addEventListener('click', async (event) => {
   if (!target) return;
 
   if (target.dataset.view) { const requested = target.dataset.view as View; if (!canOpenView(requested)) { toast('owner access required'); return; } view = requested; modal = ''; render(); return; }
+  if (target.dataset.notificationRead) { markNotificationsRead([target.dataset.notificationRead]); render(); return; }
+  if (target.dataset.notificationTarget) {
+    if (target.dataset.notificationId) markNotificationsRead([target.dataset.notificationId]);
+    const [kind, ...idParts] = target.dataset.notificationTarget.split(':');
+    const id = idParts.join(':');
+    if (kind === 'approval') { view = 'approvals'; modal = ''; render(); return; }
+    if (kind === 'order') {
+      activeOrder = orders.find((item) => item.id === id) || null;
+      if (activeOrder) { view = 'orders'; modal = 'order'; render(); }
+      else toast('order could not be found');
+      return;
+    }
+    if (kind === 'product') {
+      const product = products.find((item) => item.id === id) || null;
+      if (!product) { toast('product could not be found'); return; }
+      if (isOwner()) { editingProduct = product; catalogTab = 'products'; view = 'catalog'; modal = 'product'; }
+      else { sellCategory = product.category.trim().toLowerCase() || 'other'; view = 'sell'; modal = ''; }
+      render();
+      return;
+    }
+  }
   if (target.dataset.sellCategory) { sellCategory = target.dataset.sellCategory; render(); return; }
   if (target.dataset.skuPrefix && target.dataset.skuTarget) { const input = document.querySelector<HTMLInputElement>(`#${target.dataset.skuTarget}`); if (input) { input.value = target.dataset.skuPrefix; input.focus(); input.setSelectionRange(input.value.length, input.value.length); } return; }
   if (target.dataset.product) { activeProduct = products.find((item) => item.id === target.dataset.product)!; selectedModifiers.clear(); modal = 'modifiers'; render(); return; }
@@ -670,6 +841,14 @@ app.addEventListener('click', async (event) => {
   switch (target.dataset.action) {
     case 'close-modal': modal = ''; archiveDeleteTarget = null; teamPasswordTarget = null; reviewRequestTarget = null; render(); break;
     case 'open-account': modal = 'account'; render(); break;
+    case 'open-notifications': if (view !== 'notifications') notificationReturnView = view; view = 'notifications'; modal = ''; render(); break;
+    case 'close-notifications': view = canOpenView(notificationReturnView) && notificationReturnView !== 'notifications' ? notificationReturnView : 'sell'; modal = ''; render(); break;
+    case 'mark-all-notifications-read': markNotificationsRead(buildNotifications().map((item) => item.id)); render(); break;
+    case 'clear-read-notifications': {
+      const memory = notificationMemory();
+      memory.dismissed.push(...buildNotifications().filter((item) => item.section === 'recent' && item.read).map((item) => item.id));
+      saveNotificationMemory(memory); render(); break;
+    }
     case 'open-approvals': if (isOwner()) { view = 'approvals'; modal = ''; render(); } else toast('owner access required'); break;
     case 'change-sign-in-email': signInSentTo = ''; renderSignIn(); break;
     case 'email-sign-in-link': {
@@ -728,11 +907,12 @@ app.addEventListener('input', (event) => {
 app.addEventListener('change', async (event) => {
   const input = event.target as HTMLInputElement | HTMLSelectElement;
   if (input.hasAttribute('data-stock-tracking')) {
-    const field = document.querySelector<HTMLElement>('.stock-quantity-field');
-    const quantity = field?.querySelector<HTMLInputElement>('input');
     const tracking = input.value === 'true';
-    field?.classList.toggle('disabled', !tracking);
-    if (quantity) quantity.disabled = !tracking;
+    document.querySelectorAll<HTMLElement>('.stock-dependent-field').forEach((field) => {
+      field.classList.toggle('disabled', !tracking);
+      const stockInput = field.querySelector<HTMLInputElement>('input');
+      if (stockInput) stockInput.disabled = !tracking;
+    });
   }
   if (input.getAttribute('name') === 'includedProductIds') input.closest('.price-editor-row')?.classList.toggle('excluded', !(input as HTMLInputElement).checked);
   if (input.dataset.teamRole) {
@@ -1011,8 +1191,9 @@ async function saveProduct(data: FormData) {
   const enteredPrice = Number(data.get('price'));
   const trackStock = data.get('trackStock') === 'true';
   const stockQuantity = trackStock ? Math.max(0, Number(data.get('stockQuantity')) || 0) : existing?.stockQuantity || 0;
+  const lowStockThreshold = trackStock ? Math.max(1, Number(data.get('lowStockThreshold')) || 5) : existing?.lowStockThreshold || 5;
   const soldOut = data.get('availability') === 'unavailable' || (trackStock && stockQuantity <= 0);
-  const item: Product = { id: existing?.id || uid(), sku: String(data.get('sku')).trim(), name: String(data.get('name')).trim(), description: String(data.get('description')).trim(), category: String(data.get('category')).trim(), price: enteredPrice, standardPrice: existing?.standardPrice || enteredPrice, image: String(data.get('image') || '/assets/DT-LOGO-001.png'), modifierIds: data.getAll('modifierIds').map(String), soldOut, trackStock, stockQuantity, archived: false, createdAt: existing?.createdAt || new Date().toISOString() };
+  const item: Product = { id: existing?.id || uid(), sku: String(data.get('sku')).trim(), name: String(data.get('name')).trim(), description: String(data.get('description')).trim(), category: String(data.get('category')).trim(), price: enteredPrice, standardPrice: existing?.standardPrice || enteredPrice, image: String(data.get('image') || '/assets/DT-LOGO-001.png'), modifierIds: data.getAll('modifierIds').map(String), soldOut, trackStock, stockQuantity, lowStockThreshold, archived: false, createdAt: existing?.createdAt || new Date().toISOString() };
   await save('products', item);
   await Promise.all(priceLists.filter((priceList) => !priceList.archived).map(async (list) => {
     if (list.id === settings.activePriceListId || list.prices[item.id] === undefined) list.prices[item.id] = enteredPrice;
@@ -1143,6 +1324,7 @@ async function refreshData() {
   const [nextProducts, nextModifiers, nextPriceLists, nextOrders, nextSettings, pending, device, nextRequests] = await Promise.all([getProducts(), getModifiers(), getPriceLists(), getOrders(), getSettings(), getPendingSyncState(), getDeviceIdentity(), getOrderActionRequests().catch(() => orderActionRequests)]);
   products = nextProducts; modifiers = nextModifiers; priceLists = nextPriceLists; orders = nextOrders; settings = nextSettings;
   pendingSyncCount = pending.count; pendingOrderIds = new Set(pending.orderIds); deviceIdentity = device; orderActionRequests = nextRequests;
+  reconcileStockNotificationMemory();
 }
 
 async function retry<T>(operation: () => Promise<T>, attempts = 2): Promise<T> {
