@@ -190,7 +190,19 @@ export function watchBusinessChanges(callback: () => void | Promise<void>) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'price_lists' }, schedule)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'business_settings' }, schedule)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, schedule)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'order_action_requests' }, schedule)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, schedule)
-    .subscribe();
-  return () => { clearTimeout(timer); void supabase.removeChannel(channel); };
+    .subscribe((status) => { if (status === 'SUBSCRIBED') schedule(); });
+  const refreshWhenVisible = () => { if (document.visibilityState === 'visible') schedule(); };
+  const refreshOnFocus = () => schedule();
+  const poll = window.setInterval(schedule, 12000);
+  document.addEventListener('visibilitychange', refreshWhenVisible);
+  window.addEventListener('focus', refreshOnFocus);
+  return () => {
+    clearTimeout(timer);
+    window.clearInterval(poll);
+    document.removeEventListener('visibilitychange', refreshWhenVisible);
+    window.removeEventListener('focus', refreshOnFocus);
+    void supabase.removeChannel(channel);
+  };
 }

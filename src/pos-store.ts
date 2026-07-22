@@ -1,5 +1,5 @@
 import { isCloudConfigured, supabase } from './pos-auth';
-import type { DeviceIdentity, Modifier, OfflineAccess, Order, OrderStatus, PosProfile, PriceList, Product, Settings } from './pos-types';
+import type { DeviceIdentity, Modifier, OfflineAccess, Order, OrderAction, OrderActionRequest, OrderStatus, PosProfile, PriceList, Product, Settings } from './pos-types';
 
 const DB_NAME = 'doubletime-pos';
 const DB_VERSION = 4;
@@ -7,9 +7,10 @@ const entityStores = ['products', 'modifiers', 'orders', 'settings', 'priceLists
 const stores = [...entityStores, 'outbox', 'metadata'] as const;
 type EntityStore = (typeof entityStores)[number];
 type StoreName = (typeof stores)[number];
-type CloudOperation = 'upsert' | 'delete' | 'create-order' | 'inventory-adjustment';
+type CloudOperation = 'upsert' | 'delete' | 'create-order' | 'inventory-adjustment' | 'change-order-status';
 type OutboxRecord = { id: string; storeName: EntityStore; operation: CloudOperation; value: unknown; queuedAt: string };
 type InventoryAdjustment = { id: string; productId: string; delta: number; reason: 'sale' | 'manual'; referenceId?: string; createdAt: string };
+type QueuedOrderStatus = { id: string; status: OrderAction; pin: string };
 type CatalogStore = Exclude<EntityStore, 'orders' | 'settings'>;
 export type PendingSyncState = { count: number; orderIds: string[] };
 
@@ -101,6 +102,31 @@ const cloudWriteTimeout = <T>(operation: PromiseLike<T>, milliseconds = 10000) =
     (error) => { window.clearTimeout(timeout); reject(error); },
   );
 });
+
+const pinIterations = 160000;
+const bytesToBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+const base64ToBytes = (value: string) => Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+
+async function deriveOfflinePin(pin: string, salt: Uint8Array, iterations: number) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']);
+  const saltBuffer = salt.buffer.slice(salt.byteOffset, salt.byteOffset + salt.byteLength) as ArrayBuffer;
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: saltBuffer, iterations }, key, 256);
+  return new Uint8Array(bits);
+}
+
+async function createOfflinePinVerifier(pin: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  return { salt: bytesToBase64(salt), hash: bytesToBase64(await deriveOfflinePin(pin, salt, pinIterations)), iterations: pinIterations };
+}
+
+async function verifyOfflinePin(pin: string, verifier: NonNullable<Settings['offlinePinVerifier']>) {
+  const expected = base64ToBytes(verifier.hash);
+  const actual = await deriveOfflinePin(pin, base64ToBytes(verifier.salt), verifier.iterations);
+  if (expected.length !== actual.length) return false;
+  let mismatch = 0;
+  for (let index = 0; index < expected.length; index += 1) mismatch |= expected[index] ^ actual[index];
+  return mismatch === 0;
+}
 
 function generatedDevicePrefix(deviceId: string) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -321,27 +347,85 @@ export async function createOrder(order: Order) {
   return provisional;
 }
 
+function mapOrderActionRequest(row: Record<string, unknown>): OrderActionRequest {
+  return {
+    id: String(row.id),
+    businessId: String(row.business_id),
+    orderId: String(row.order_id),
+    action: row.action as OrderAction,
+    reason: String(row.reason || ''),
+    status: row.status as OrderActionRequest['status'],
+    requestedBy: String(row.requested_by),
+    requestedByName: String(row.requested_by_name || 'team member'),
+    requestedAt: String(row.requested_at),
+    reviewedBy: row.reviewed_by ? String(row.reviewed_by) : undefined,
+    reviewedByName: row.reviewed_by_name ? String(row.reviewed_by_name) : undefined,
+    reviewedAt: row.reviewed_at ? String(row.reviewed_at) : undefined,
+    reviewNote: row.review_note ? String(row.review_note) : undefined,
+  };
+}
+
+export async function getOrderActionRequests() {
+  if (!cloudActive() || !supabase || !navigator.onLine) return [] as OrderActionRequest[];
+  const { data, error } = await supabase
+    .from('order_action_requests')
+    .select('id, business_id, order_id, action, reason, status, requested_by, requested_by_name, requested_at, reviewed_by, reviewed_by_name, reviewed_at, review_note')
+    .order('requested_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map((row) => mapOrderActionRequest(row as Record<string, unknown>));
+}
+
+export async function requestOrderAction(orderId: string, action: OrderAction, reason: string) {
+  if (!cloudActive() || !supabase || !navigator.onLine) throw new Error('connect to send this request to an owner');
+  const { data, error } = await supabase.rpc('request_pos_order_action', { p_order_id: orderId, p_action: action, p_reason: reason.trim() });
+  if (error) throw error;
+  return mapOrderActionRequest(data as Record<string, unknown>);
+}
+
+export async function reviewOrderAction(requestId: string, decision: 'approved' | 'declined', note: string) {
+  if (!cloudActive() || !supabase || !navigator.onLine) throw new Error('connect to review this request');
+  const { data, error } = await supabase.rpc('review_pos_order_action', { p_request_id: requestId, p_decision: decision, p_note: note.trim() });
+  if (error) throw error;
+  return mapOrderActionRequest(data as Record<string, unknown>);
+}
+
+async function applyCloudOrderStatus(change: QueuedOrderStatus) {
+  if (!supabase) throw new Error('supabase is not connected');
+  const { data, error } = await supabase.rpc('change_pos_order_status', { p_order_id: change.id, p_status: change.status, p_pin: change.pin });
+  if (error) throw error;
+  const order = data as Order;
+  await putLocal('orders', order);
+  return order;
+}
+
 export async function changeOrderStatus(id: string, status: OrderStatus, pin: string) {
-  if (cloudActive() && supabase) {
-    const { data, error } = await supabase.rpc('change_pos_order_status', { p_order_id: id, p_status: status, p_pin: pin });
-    if (error) throw error;
-    const order = data as Order;
-    await putLocal('orders', order);
-    return order;
+  if (status !== 'voided' && status !== 'refunded') throw new Error('invalid order status');
+  if (cloudActive() && navigator.onLine) {
+    return applyCloudOrderStatus({ id, status, pin });
   }
   const settings = await getSettings();
-  if (pin !== settings.managerPin) throw new Error('manager pin is incorrect');
+  if (cloudActive()) {
+    if (!settings.offlinePinVerifier) throw new Error('offline manager pin is not ready. an owner must reconnect and save the manager pin once');
+    if (!await verifyOfflinePin(pin, settings.offlinePinVerifier)) throw new Error('manager pin is incorrect');
+  } else if (pin !== settings.managerPin) throw new Error('manager pin is incorrect');
   const order = await oneLocal<Order>('orders', id);
   if (!order) throw new Error('order not found');
   order.status = status;
   await putLocal('orders', order);
+  if (cloudActive()) await queue('orders', 'change-order-status', { id, status, pin } satisfies QueuedOrderStatus);
   return order;
 }
 
 export async function updateManagerPin(pin: string) {
   if (cloudActive() && supabase) {
-    const { error } = await supabase.rpc('set_manager_pin', { p_pin: pin });
+    if (!navigator.onLine) throw new Error('connect to update the manager pin');
+    const offlinePinVerifier = await createOfflinePinVerifier(pin);
+    const { error } = await supabase.rpc('set_manager_pin', { p_pin: pin, p_offline_verifier: offlinePinVerifier });
     if (error) throw error;
+    const settings = await getSettings();
+    settings.managerPin = '';
+    settings.offlinePinVerifier = offlinePinVerifier;
+    await putLocal('settings', settings);
     return;
   }
   const settings = await getSettings();
@@ -357,6 +441,7 @@ export async function flushOutbox() {
     try {
       if (record.operation === 'create-order') await createCloudOrder(record.value as Order);
       else if (record.operation === 'inventory-adjustment') await applyCloudInventoryAdjustment(record.value as InventoryAdjustment);
+      else if (record.operation === 'change-order-status') await applyCloudOrderStatus(record.value as QueuedOrderStatus);
       else if (record.operation === 'delete') await deleteCloudCatalogItem(record.storeName as CatalogStore, (record.value as { id: string }).id);
       else await upsertCloud(record.storeName, record.value);
       await deleteLocal('outbox', record.id);
@@ -374,7 +459,7 @@ export async function getPendingSyncState(): Promise<PendingSyncState> {
   const records = await allLocal<OutboxRecord>('outbox');
   return {
     count: records.length,
-    orderIds: records.filter((record) => record.operation === 'create-order').map((record) => (record.value as Order).id),
+    orderIds: records.filter((record) => record.operation === 'create-order' || record.operation === 'change-order-status').map((record) => (record.value as { id: string }).id),
   };
 }
 
@@ -426,7 +511,7 @@ export async function initializeStore() {
 }
 
 export async function exportBackup() {
-  return { version: 2, exportedAt: new Date().toISOString(), products: await getProducts(), modifiers: await getModifiers(), priceLists: await getPriceLists(), orders: await getOrders(), settings: await getSettings() };
+  return { version: 3, exportedAt: new Date().toISOString(), products: await getProducts(), modifiers: await getModifiers(), priceLists: await getPriceLists(), orders: await getOrders(), settings: await getSettings(), approvalRequests: await getOrderActionRequests().catch(() => []) };
 }
 
 export async function importBackup(data: unknown) {

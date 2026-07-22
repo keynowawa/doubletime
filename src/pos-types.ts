@@ -51,6 +51,25 @@ export type CartLine = {
 
 export type OrderStatus = 'completed' | 'voided' | 'refunded';
 
+export type OrderAction = 'voided' | 'refunded';
+export type OrderActionRequestStatus = 'pending' | 'approved' | 'declined';
+
+export type OrderActionRequest = {
+  id: string;
+  businessId: string;
+  orderId: string;
+  action: OrderAction;
+  reason: string;
+  status: OrderActionRequestStatus;
+  requestedBy: string;
+  requestedByName: string;
+  requestedAt: string;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+};
+
 export type Order = {
   id: string;
   number: number;
@@ -86,6 +105,11 @@ export type Settings = {
   taxInclusive: boolean;
   nextOrderNumber: number;
   managerPin: string;
+  offlinePinVerifier?: {
+    salt: string;
+    hash: string;
+    iterations: number;
+  };
 };
 
 export type UserRole = 'owner' | 'staff';

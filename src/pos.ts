@@ -1,12 +1,12 @@
 import './pos.css';
 import { strToU8, zipSync } from 'fflate';
-import { Archive, Banknote, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
+import { Archive, Banknote, Bell, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings as SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X, createIcons } from 'lucide';
 import { changePassword, createTeamAccount, getBusinessProfiles, getCurrentProfile, getSession, isCloudConfigured, resetTeamMemberPassword, sendSignInLink, signInWithPassword, signOut, updateTeamMemberActive, updateTeamMemberRole, watchAuth, watchBusinessChanges } from './pos-auth';
-import { OFFLINE_ACCESS_DAYS, adjustProductStock, cacheOfflineAccess, changeOrderStatus as persistOrderStatus, clearOfflineAccess, connectCloud, createOrder, exportBackup, getDeviceIdentity, getModifiers, getOfflineAccess, getOrders, getPendingSyncState, getPriceLists, getProducts, getSettings, importBackup, initializeStore, removeCatalogItem, save, syncFromCloud, updateDeviceIdentity, updateManagerPin, usingCloud } from './pos-store';
-import type { CartLine, DeviceIdentity, Discount, Modifier, Order, OrderStatus, PaymentMethod, PosProfile, PriceList, Product, Settings, UserRole } from './pos-types';
+import { OFFLINE_ACCESS_DAYS, adjustProductStock, cacheOfflineAccess, changeOrderStatus as persistOrderStatus, clearOfflineAccess, connectCloud, createOrder, exportBackup, getDeviceIdentity, getModifiers, getOfflineAccess, getOrderActionRequests, getOrders, getPendingSyncState, getPriceLists, getProducts, getSettings, importBackup, initializeStore, removeCatalogItem, requestOrderAction, reviewOrderAction, save, syncFromCloud, updateDeviceIdentity, updateManagerPin, usingCloud } from './pos-store';
+import type { CartLine, DeviceIdentity, Discount, Modifier, Order, OrderAction, OrderActionRequest, OrderStatus, PaymentMethod, PosProfile, PriceList, Product, Settings, UserRole } from './pos-types';
 
-type View = 'sell' | 'dashboard' | 'orders' | 'catalog' | 'settings';
-type Modal = '' | 'modifiers' | 'discount' | 'payment' | 'receipt' | 'product' | 'modifier' | 'order' | 'price-list' | 'price-picker' | 'account' | 'delete-archive' | 'team-password';
+type View = 'sell' | 'dashboard' | 'orders' | 'approvals' | 'catalog' | 'settings';
+type Modal = '' | 'modifiers' | 'discount' | 'payment' | 'receipt' | 'product' | 'modifier' | 'order' | 'price-list' | 'price-picker' | 'account' | 'delete-archive' | 'team-password' | 'request-action' | 'review-request';
 type ArchiveKind = 'product' | 'modifier' | 'priceList';
 type ArchiveDeleteTarget = { kind: ArchiveKind; id: string; name: string };
 
@@ -56,6 +56,10 @@ let syncPhase: 'online' | 'offline' | 'syncing' = navigator.onLine ? 'online' : 
 let sellCategory = '';
 let archiveDeleteTarget: ArchiveDeleteTarget | null = null;
 let teamPasswordTarget: PosProfile | null = null;
+let orderActionRequests: OrderActionRequest[] = [];
+let requestedOrderAction: OrderAction = 'refunded';
+let reviewRequestTarget: OrderActionRequest | null = null;
+let reviewDecision: 'approved' | 'declined' = 'approved';
 
 const paymentMethods: { id: PaymentMethod; label: string; note: string; icon: string }[] = [
   { id: 'cash', label: 'cash', note: 'calculate change', icon: 'banknote' },
@@ -72,6 +76,9 @@ const profileInitials = () => (currentProfile?.displayName || currentProfile?.em
 const isPendingOrder = (order: Order) => pendingOrderIds.has(order.id);
 const orderReference = (order: Order) => isPendingOrder(order) && order.localReceiptCode ? order.localReceiptCode : `#${String(order.number).padStart(3, '0')}`;
 const nextOrderReference = () => !navigator.onLine && deviceIdentity ? `${deviceIdentity.prefix}-${String(deviceIdentity.nextLocalOrderNumber).padStart(3, '0')}` : `#${String(settings.nextOrderNumber).padStart(3, '0')}`;
+const orderActionLabel = (action: OrderAction) => action === 'refunded' ? 'refund' : 'void';
+const pendingApprovalCount = () => orderActionRequests.filter((request) => request.status === 'pending').length;
+const requestsForOrder = (orderId: string) => orderActionRequests.filter((request) => request.orderId === orderId).sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
 
 const uid = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const clone = <T>(value: T): T => typeof globalThis.structuredClone === 'function'
@@ -113,11 +120,12 @@ function renderSyncBadge() {
   const state = !navigator.onLine ? 'offline' : syncPhase;
   const label = state === 'syncing' ? 'syncing' : state === 'offline' ? 'offline' : 'online';
   const detail = pendingSyncCount ? `${pendingSyncCount} pending` : '';
-  return `<div class="global-sync-badge ${state}" role="status" aria-label="${label}${detail ? `, ${detail}` : ''}"><i data-lucide="${state === 'offline' ? 'wifi-off' : 'cloud'}"></i><span>${label}</span>${detail ? `<small>${detail}</small>` : ''}</div>`;
+  const approvals = isOwner() && pendingApprovalCount() ? `<button class="global-approval-badge" data-action="open-approvals" aria-label="${pendingApprovalCount()} approval request${pendingApprovalCount() === 1 ? '' : 's'}"><i data-lucide="bell"></i><strong>${pendingApprovalCount()}</strong><span>approval${pendingApprovalCount() === 1 ? '' : 's'}</span></button>` : '';
+  return `<div class="global-status-stack">${approvals}<div class="global-sync-badge ${state}" role="status" aria-label="${label}${detail ? `, ${detail}` : ''}"><i data-lucide="${state === 'offline' ? 'wifi-off' : 'cloud'}"></i><span>${label}</span>${detail ? `<small>${detail}</small>` : ''}</div></div>`;
 }
 
 function hydrateIcons() {
-  createIcons({ icons: { Archive, Banknote, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings: SettingsIcon, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X }, attrs: { 'stroke-width': '1.8', 'aria-hidden': 'true' } });
+  createIcons({ icons: { Archive, Banknote, Bell, ChartNoAxesCombined, Check, ChevronDown, ChevronRight, CircleCheckBig, CirclePlus, Clock3, Cloud, Copy, CreditCard, Download, FileSpreadsheet, House, ImagePlus, KeyRound, Landmark, LayoutGrid, LogOut, Mail, Minus, Pencil, PhilippinePeso, Plus, QrCode, ReceiptText, Search, Settings: SettingsIcon, ShieldCheck, ShoppingCart, Smartphone, Trash2, UserRound, UsersRound, WifiOff, X }, attrs: { 'stroke-width': '1.8', 'aria-hidden': 'true' } });
 }
 
 function render() {
@@ -138,6 +146,7 @@ function render() {
 function renderView() {
   if (view === 'dashboard') return renderDashboard();
   if (view === 'orders') return renderOrders();
+  if (view === 'approvals') return renderApprovals();
   if (view === 'catalog') return renderCatalog();
   if (view === 'settings') return renderSettings();
   return renderSell();
@@ -276,12 +285,33 @@ function renderOrders() {
   const today = new Date().toDateString();
   const todayOrders = orders.filter((order) => new Date(order.createdAt).toDateString() === today && order.status === 'completed');
   return `<div class="page orders-page">
-    ${pageHeader('orders', 'all recorded orders, with today shown up top.', isOwner() ? `<div class="order-header-actions"><button class="secondary-button" data-action="export-csv">export csv</button><button class="secondary-button dark" data-action="export-excel">export excel</button></div>` : '')}
+    ${pageHeader('orders', 'all recorded orders, with today shown up top.', isOwner() ? `<div class="order-header-actions"><button class="secondary-button approvals-button ${pendingApprovalCount() ? 'has-pending' : ''}" data-action="open-approvals"><i data-lucide="shield-check"></i><span>approvals</span>${pendingApprovalCount() ? `<strong>${pendingApprovalCount()}</strong>` : ''}</button><button class="secondary-button" data-action="export-csv">export csv</button><button class="secondary-button dark" data-action="export-excel">export excel</button></div>` : '')}
     <div class="order-strip"><div class="sales-stat"><span>today's sales</span><strong>${money.format(todayOrders.reduce((sum, order) => sum + order.total, 0))}</strong></div><div class="orders-stat"><span>today's orders</span><strong>${todayOrders.length}</strong></div><div class="all-orders-stat"><span>all recorded</span><strong>${orders.length} orders</strong></div></div>
     <div class="orders-toolbar panel"><label class="search-box"><i data-lucide="search"></i><input data-field="order-search" value="${esc(orderSearch)}" placeholder="search order, customer, payment"></label><div class="table-filters"><label><span class="visually-hidden">date range</span><select data-order-filter="range"><option value="all" ${orderRange === 'all' ? 'selected' : ''}>all time</option><option value="today" ${orderRange === 'today' ? 'selected' : ''}>today</option><option value="7days" ${orderRange === '7days' ? 'selected' : ''}>last 7 days</option><option value="30days" ${orderRange === '30days' ? 'selected' : ''}>last 30 days</option></select></label><label><span class="visually-hidden">status</span><select data-order-filter="status"><option value="all" ${orderStatus === 'all' ? 'selected' : ''}>all statuses</option><option value="completed" ${orderStatus === 'completed' ? 'selected' : ''}>completed</option><option value="refunded" ${orderStatus === 'refunded' ? 'selected' : ''}>refunded</option><option value="voided" ${orderStatus === 'voided' ? 'selected' : ''}>voided</option></select></label><label><span class="visually-hidden">payment</span><select data-order-filter="payment"><option value="all" ${orderPayment === 'all' ? 'selected' : ''}>all payments</option>${paymentMethods.map((method) => `<option value="${method.id}" ${orderPayment === method.id ? 'selected' : ''}>${method.label}</option>`).join('')}</select></label><label><span class="visually-hidden">sort orders</span><select data-order-filter="sort"><option value="newest" ${orderSort === 'newest' ? 'selected' : ''}>newest first</option><option value="oldest" ${orderSort === 'oldest' ? 'selected' : ''}>oldest first</option><option value="highest" ${orderSort === 'highest' ? 'selected' : ''}>highest total</option><option value="lowest" ${orderSort === 'lowest' ? 'selected' : ''}>lowest total</option></select></label></div></div>
     <section class="order-table panel"><div class="table-head"><span>order</span><span>time</span><span>items</span><span>payment</span><span>status</span><span>total</span></div>
       ${matches.length ? matches.map((order) => `<button class="table-row" data-order="${order.id}"><span><strong>${orderReference(order)}</strong><small>${esc(order.customerName || 'walk-in')}${isPendingOrder(order) ? ' · waiting to sync' : ''}</small></span><span>${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()}</span><span>${order.lines.reduce((sum, line) => sum + line.quantity, 0)}</span><span>${paymentLabel(order.paymentMethod)}</span><span><i class="status-pill ${isPendingOrder(order) ? 'pending' : order.status}">${isPendingOrder(order) ? 'pending' : order.status}</i></span><span><strong>${money.format(order.total)}</strong><i data-lucide="chevron-right"></i></span></button>`).join('') : emptyTable(query || orderRange !== 'all' || orderStatus !== 'all' || orderPayment !== 'all' ? 'no orders match these filters.' : 'completed orders will appear here.')}
     </section>
+  </div>`;
+}
+
+function renderApprovalCard(request: OrderActionRequest, actionable: boolean) {
+  const order = orders.find((item) => item.id === request.orderId);
+  const reference = order ? orderReference(order) : 'order';
+  const reviewed = request.reviewedAt ? `${shortDate.format(new Date(request.reviewedAt)).toLowerCase()} · ${time.format(new Date(request.reviewedAt)).toLowerCase()}` : '';
+  return `<article class="approval-card panel ${request.status}">
+    <div class="approval-icon"><i data-lucide="${request.action === 'refunded' ? 'receipt-text' : 'x'}"></i></div>
+    <div class="approval-main"><div class="approval-heading"><span class="approval-action">${orderActionLabel(request.action)} request</span><span class="status-pill ${request.status}">${request.status}</span></div><h3>${esc(reference)}${order ? ` · ${money.format(order.total)}` : ''}</h3><p>${esc(request.reason)}</p><small>requested by ${esc(request.requestedByName)} · ${shortDate.format(new Date(request.requestedAt)).toLowerCase()} · ${time.format(new Date(request.requestedAt)).toLowerCase()}</small>${request.reviewedByName ? `<small>${request.status} by ${esc(request.reviewedByName)}${reviewed ? ` · ${reviewed}` : ''}${request.reviewNote ? ` · ${esc(request.reviewNote)}` : ''}</small>` : ''}</div>
+    ${actionable ? `<div class="approval-actions"><button class="secondary-button" data-review-request="${request.id}" data-review-decision="declined">decline</button><button class="primary-small" data-review-request="${request.id}" data-review-decision="approved"><i data-lucide="check"></i><span>review & approve</span></button></div>` : ''}
+  </article>`;
+}
+
+function renderApprovals() {
+  const pending = orderActionRequests.filter((request) => request.status === 'pending');
+  const history = orderActionRequests.filter((request) => request.status !== 'pending');
+  return `<div class="page approvals-page">
+    ${pageHeader('approvals', 'refund and void requests from your team.', '<button class="secondary-button" data-view="orders"><i data-lucide="chevron-right"></i><span>back to orders</span></button>')}
+    <section class="approval-section"><div class="approval-section-head"><div><h2>waiting for you</h2><p>review the order and reason before deciding.</p></div><span>${pending.length}</span></div>${pending.length ? `<div class="approval-list">${pending.map((request) => renderApprovalCard(request, true)).join('')}</div>` : emptyPanel('no requests need approval.', 'shield-check')}</section>
+    <section class="approval-section history"><div class="approval-section-head"><div><h2>request history</h2><p>approved and declined requests stay here for accountability.</p></div><span>${history.length}</span></div>${history.length ? `<div class="approval-list">${history.map((request) => renderApprovalCard(request, false)).join('')}</div>` : emptyPanel('reviewed requests will appear here.', 'clock-3')}</section>
   </div>`;
 }
 
@@ -325,7 +355,7 @@ function renderSettings() {
       <section class="settings-card panel"><div class="settings-title"><span><i data-lucide="download"></i></span><div><h2>exports & backup</h2><p>keep a copy somewhere safe.</p></div></div>
         <div class="settings-actions"><button data-action="export-excel"><strong>export excel workbook</strong><small>summary, orders, items, and payments</small><b><i data-lucide="file-spreadsheet"></i></b></button><button data-action="export-csv"><strong>export sales csv</strong><small>opens in excel or google sheets</small><b><i data-lucide="receipt-text"></i></b></button><button data-action="backup"><strong>download full backup</strong><small>products, settings, and all sales</small><b><i data-lucide="download"></i></b></button><button data-action="import"><strong>restore from backup</strong><small>choose a doubletime backup file</small><b class="restore-icon"><i data-lucide="download"></i></b></button><input id="backup-input" type="file" accept="application/json" hidden></div>
       </section>
-      <form class="settings-card panel" id="security-settings"><div class="settings-title"><span><i data-lucide="settings"></i></span><div><h2>manager pin</h2><p>used for voids and refunds.</p></div></div><label><span>4–8 digit pin</span><input name="managerPin" inputmode="numeric" pattern="[0-9]{4,8}" value="${esc(settings.managerPin)}" placeholder="enter a new 4–8 digit pin" required></label><button class="secondary-button wide" type="submit">update pin</button></form>
+      <form class="settings-card panel" id="security-settings"><div class="settings-title"><span><i data-lucide="settings"></i></span><div><h2>manager pin</h2><p>emergency offline approval only.</p></div></div><label><span>4–8 digit pin</span><input name="managerPin" inputmode="numeric" pattern="[0-9]{4,8}" value="${esc(settings.managerPin)}" placeholder="enter a new 4–8 digit pin" required></label><p class="pin-readiness ${settings.offlinePinVerifier ? 'ready' : ''}"><i data-lucide="${settings.offlinePinVerifier ? 'check' : 'wifi-off'}"></i><span>${settings.offlinePinVerifier ? 'offline fallback is ready on synced ipads' : 'save your current pin once to enable offline fallback'}</span></p><button class="secondary-button wide" type="submit">update pin</button></form>
       ${teamCard}
     </div>
   </div>`;
@@ -381,6 +411,8 @@ function renderModal() {
   if (modal === 'account') return renderAccountModal();
   if (modal === 'delete-archive' && archiveDeleteTarget) return renderArchiveDeleteModal();
   if (modal === 'team-password' && teamPasswordTarget) return renderTeamPasswordModal();
+  if (modal === 'request-action' && activeOrder) return renderRequestActionModal();
+  if (modal === 'review-request' && reviewRequestTarget) return renderReviewRequestModal();
   return '';
 }
 
@@ -471,12 +503,47 @@ function renderTeamPasswordModal() {
   return `<div class="modal-layer"><form class="modal-card compact" id="team-password-form">${modalHead('reset password', `set a new temporary password for ${esc(profile.displayName || profile.email)}.`)}<input type="hidden" name="userId" value="${profile.id}"><label><span>new temporary password</span><input name="temporaryPassword" type="password" autocomplete="new-password" autocapitalize="none" minlength="8" placeholder="at least 8 characters" required autofocus></label><label><span>confirm password</span><input name="confirmPassword" type="password" autocomplete="new-password" autocapitalize="none" minlength="8" placeholder="type it again" required></label><p class="team-helper">share this password privately. the team member can change it after signing in.</p><button class="modal-primary" type="submit"><span>save new password</span><i data-lucide="key-round"></i></button></form></div>`;
 }
 
-function renderOrderModal(order: Order) {
-  const pending = isPendingOrder(order);
-  return `<div class="modal-layer"><section class="modal-card order-detail">${modalHead(`order ${orderReference(order)}`, `${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()} · ${paymentLabel(order.paymentMethod)} · ${esc(order.deviceName || 'this ipad')}`)}<div class="order-detail-status"><span class="status-pill ${pending ? 'pending' : order.status}">${pending ? 'waiting to sync' : order.status}</span><strong>${money.format(order.total)}</strong></div><div class="detail-lines">${order.lines.map((line) => `<div><span><strong>${line.quantity}× ${esc(line.product.name)}</strong><small>${line.modifiers.map((item) => esc(item.name)).join(' · ') || 'no add-ons'}</small></span><strong>${money.format(lineUnitPrice(line) * line.quantity)}</strong></div>`).join('')}</div>${order.customerName || order.note ? `<div class="order-memo"><span>${esc(order.customerName || 'walk-in')}</span><p>${esc(order.note || 'no order note')}</p></div>` : ''}<div class="detail-totals"><div><span>subtotal</span><strong>${money.format(order.subtotal)}</strong></div>${order.discount ? `<div><span>${esc(order.discountLabel)}</span><strong>−${money.format(order.discount)}</strong></div>` : ''}${order.tax ? `<div><span>${esc(order.taxName)}</span><strong>${money.format(order.tax)}</strong></div>` : ''}<div><span>total</span><strong>${money.format(order.total)}</strong></div></div>${pending ? '<div class="pending-order-note"><i data-lucide="wifi-off"></i><span>refunds and voids become available after this order syncs.</span></div>' : order.status === 'completed' ? `<div class="order-fix"><p>need to fix this sale? enter the manager pin.</p><div><input id="order-pin" inputmode="numeric" type="password" placeholder="manager pin"><button data-order-status="refunded">refund</button><button data-order-status="voided">void</button></div></div>` : ''}</section></div>`;
+function renderRequestActionModal() {
+  const order = activeOrder!;
+  const label = orderActionLabel(requestedOrderAction);
+  return `<div class="modal-layer"><form class="modal-card compact action-request-modal" id="order-action-request-form">${modalHead(`request ${label}`, `send order ${orderReference(order)} to an owner for approval.`)}<input type="hidden" name="action" value="${requestedOrderAction}"><div class="request-order-summary"><span><i data-lucide="receipt-text"></i></span><div><small>order ${orderReference(order)}</small><strong>${money.format(order.total)}</strong></div></div><label><span>reason</span><textarea name="reason" minlength="3" maxlength="300" placeholder="e.g. customer was charged twice" required autofocus></textarea></label><p class="team-helper">the order stays completed until an owner approves this ${label}.</p><button class="modal-primary" type="submit"><span>send ${label} request</span><i data-lucide="bell"></i></button></form></div>`;
 }
 
-const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sell-category],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-order-status],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive],[data-team-password],[data-team-active],[data-sku-prefix]';
+function renderReviewRequestModal() {
+  const request = reviewRequestTarget!;
+  const order = orders.find((item) => item.id === request.orderId);
+  const approving = reviewDecision === 'approved';
+  return `<div class="modal-layer"><form class="modal-card compact review-request-modal" id="review-request-form">${modalHead(`${approving ? 'approve' : 'decline'} ${orderActionLabel(request.action)}?`, `${request.requestedByName} requested this change.`)}<input type="hidden" name="requestId" value="${request.id}"><input type="hidden" name="decision" value="${reviewDecision}"><div class="review-request-summary"><div><small>${order ? `order ${orderReference(order)}` : 'order'}</small><strong>${order ? money.format(order.total) : ''}</strong></div><span class="approval-action">${orderActionLabel(request.action)}</span></div><blockquote>${esc(request.reason)}</blockquote><label><span>owner note <small>optional</small></span><textarea name="note" maxlength="300" placeholder="add context for the team member"></textarea></label><button class="modal-primary ${approving ? '' : 'decline-action'}" type="submit"><span>${approving ? `approve ${orderActionLabel(request.action)}` : 'decline request'}</span><i data-lucide="${approving ? 'check' : 'x'}"></i></button></form></div>`;
+}
+
+function renderOrderActionControls(order: Order, waitingToSync: boolean) {
+  if (waitingToSync) return `<div class="pending-order-note"><i data-lucide="wifi-off"></i><span>this order is saved on this ipad and waiting to sync.</span></div>`;
+  const requestHistory = requestsForOrder(order.id);
+  const pendingRequest = requestHistory.find((request) => request.status === 'pending');
+  const latestRequest = requestHistory[0];
+  if (order.status !== 'completed') {
+    if (!latestRequest) return '';
+    return `<div class="request-result ${latestRequest.status}"><i data-lucide="${latestRequest.status === 'approved' ? 'check' : 'x'}"></i><span>${orderActionLabel(latestRequest.action)} request ${latestRequest.status}${latestRequest.reviewedByName ? ` by ${esc(latestRequest.reviewedByName)}` : ''}</span></div>`;
+  }
+  if (pendingRequest) {
+    return `<div class="order-approval-pending"><div><i data-lucide="clock-3"></i><span><strong>${orderActionLabel(pendingRequest.action)} awaiting approval</strong><small>${esc(pendingRequest.reason)} · requested by ${esc(pendingRequest.requestedByName)}</small></span></div>${isOwner() ? `<div class="approval-actions"><button class="secondary-button" data-review-request="${pendingRequest.id}" data-review-decision="declined">decline</button><button class="primary-small" data-review-request="${pendingRequest.id}" data-review-decision="approved"><i data-lucide="check"></i><span>review & approve</span></button></div>` : '<p>an owner will see this request automatically.</p>'}</div>`;
+  }
+  const previous = latestRequest?.status === 'declined' ? `<div class="request-result declined"><i data-lucide="x"></i><span>last ${orderActionLabel(latestRequest.action)} request was declined${latestRequest.reviewedByName ? ` by ${esc(latestRequest.reviewedByName)}` : ''}${latestRequest.reviewNote ? ` · ${esc(latestRequest.reviewNote)}` : ''}</span></div>` : '';
+  if (usingCloud() && navigator.onLine && currentProfile?.role === 'staff') {
+    return `${previous}<div class="order-fix request-owner"><p>need to fix this sale? send the reason to an owner.</p><div><button data-request-action="refunded"><i data-lucide="receipt-text"></i><span>request refund</span></button><button data-request-action="voided"><i data-lucide="x"></i><span>request void</span></button></div></div>`;
+  }
+  if (usingCloud() && navigator.onLine && currentProfile?.role === 'owner') {
+    return `${previous}<div class="order-fix owner-direct"><p>owner action · this change is applied immediately and recorded.</p><div><button data-order-status="refunded"><i data-lucide="receipt-text"></i><span>refund</span></button><button data-order-status="voided"><i data-lucide="x"></i><span>void</span></button></div></div>`;
+  }
+  return `${previous}<div class="order-fix offline-fallback"><p>offline emergency · enter the manager pin. this will sync when the ipad reconnects.</p><div><input id="order-pin" inputmode="numeric" type="password" placeholder="manager pin"><button data-order-status="refunded">refund</button><button data-order-status="voided">void</button></div></div>`;
+}
+
+function renderOrderModal(order: Order) {
+  const pending = isPendingOrder(order);
+  return `<div class="modal-layer"><section class="modal-card order-detail">${modalHead(`order ${orderReference(order)}`, `${shortDate.format(new Date(order.createdAt)).toLowerCase()} · ${time.format(new Date(order.createdAt)).toLowerCase()} · ${paymentLabel(order.paymentMethod)} · ${esc(order.deviceName || 'this ipad')}`)}<div class="order-detail-status"><span class="status-pill ${pending ? 'pending' : order.status}">${pending ? 'waiting to sync' : order.status}</span><strong>${money.format(order.total)}</strong></div><div class="detail-lines">${order.lines.map((line) => `<div><span><strong>${line.quantity}× ${esc(line.product.name)}</strong><small>${line.modifiers.map((item) => esc(item.name)).join(' · ') || 'no add-ons'}</small></span><strong>${money.format(lineUnitPrice(line) * line.quantity)}</strong></div>`).join('')}</div>${order.customerName || order.note ? `<div class="order-memo"><span>${esc(order.customerName || 'walk-in')}</span><p>${esc(order.note || 'no order note')}</p></div>` : ''}<div class="detail-totals"><div><span>subtotal</span><strong>${money.format(order.subtotal)}</strong></div>${order.discount ? `<div><span>${esc(order.discountLabel)}</span><strong>−${money.format(order.discount)}</strong></div>` : ''}${order.tax ? `<div><span>${esc(order.taxName)}</span><strong>${money.format(order.tax)}</strong></div>` : ''}<div><span>total</span><strong>${money.format(order.total)}</strong></div></div>${renderOrderActionControls(order, pending)}</section></div>`;
+}
+
+const interactiveSelector = '[data-view],[data-action],[data-product],[data-modifier],[data-quantity],[data-remove],[data-payment],[data-cash],[data-preset-discount],[data-range],[data-order],[data-catalog-tab],[data-sell-category],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-order-status],[data-request-action],[data-review-request],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive],[data-team-password],[data-team-active],[data-sku-prefix]';
 const catalogTouchSelector = '[data-action="new-product"],[data-action="new-modifier"],[data-action="new-price-list"],[data-catalog-tab],[data-stock-adjust],[data-availability],[data-edit-product],[data-edit-modifier],[data-use-price-list],[data-edit-price-list],[data-duplicate-price-list],[data-archive-price-list],[data-restore-product],[data-restore-modifier],[data-restore-price-list],[data-delete-archive]';
 
 app.addEventListener('touchend', (event) => {
@@ -533,6 +600,14 @@ app.addEventListener('click', async (event) => {
   if (target.dataset.editProduct) { editingProduct = products.find((item) => item.id === target.dataset.editProduct)!; modal = 'product'; render(); return; }
   if (target.dataset.editModifier) { editingModifier = modifiers.find((item) => item.id === target.dataset.editModifier)!; modal = 'modifier'; render(); return; }
   if (target.dataset.orderStatus) { await changeOrderStatus(target.dataset.orderStatus as OrderStatus); return; }
+  if (target.dataset.requestAction) { requestedOrderAction = target.dataset.requestAction as OrderAction; modal = 'request-action'; render(); return; }
+  if (target.dataset.reviewRequest && target.dataset.reviewDecision) {
+    if (!isOwner()) { toast('owner access required'); return; }
+    reviewRequestTarget = orderActionRequests.find((request) => request.id === target.dataset.reviewRequest) || null;
+    reviewDecision = target.dataset.reviewDecision as 'approved' | 'declined';
+    if (reviewRequestTarget) { modal = 'review-request'; render(); }
+    return;
+  }
   if (target.dataset.usePriceList) { await usePriceList(target.dataset.usePriceList); return; }
   if (target.dataset.editPriceList) { editingPriceList = priceLists.find((item) => item.id === target.dataset.editPriceList)!; modal = 'price-list'; render(); return; }
   if (target.dataset.duplicatePriceList) { await duplicatePriceList(target.dataset.duplicatePriceList); return; }
@@ -564,8 +639,9 @@ app.addEventListener('click', async (event) => {
   }
 
   switch (target.dataset.action) {
-    case 'close-modal': modal = ''; archiveDeleteTarget = null; teamPasswordTarget = null; render(); break;
+    case 'close-modal': modal = ''; archiveDeleteTarget = null; teamPasswordTarget = null; reviewRequestTarget = null; render(); break;
     case 'open-account': modal = 'account'; render(); break;
+    case 'open-approvals': if (isOwner()) { view = 'approvals'; modal = ''; render(); } else toast('owner access required'); break;
     case 'change-sign-in-email': signInSentTo = ''; renderSignIn(); break;
     case 'email-sign-in-link': {
       const emailInput = document.querySelector<HTMLInputElement>('#sign-in-email');
@@ -699,6 +775,31 @@ app.addEventListener('submit', async (event) => {
     catch (error) { if (button) button.disabled = false; toast(error instanceof Error ? error.message.toLowerCase() : 'sign in failed'); }
     return;
   }
+  if (form.id === 'order-action-request-form') {
+    if (!activeOrder) return;
+    const reason = String(data.get('reason') || '').trim();
+    if (reason.length < 3) { toast('add a short reason for the owner'); return; }
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+      await requestOrderAction(activeOrder.id, data.get('action') as OrderAction, reason);
+      orderActionRequests = await getOrderActionRequests();
+      modal = 'order'; render(); toast('request sent to the owners');
+    } catch (error) { if (button) button.disabled = false; toast(readableError(error, 'request could not be sent')); }
+    return;
+  }
+  if (form.id === 'review-request-form') {
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+      const decision = data.get('decision') as 'approved' | 'declined';
+      await reviewOrderAction(String(data.get('requestId') || ''), decision, String(data.get('note') || ''));
+      await syncFromCloud();
+      await refreshData();
+      reviewRequestTarget = null; modal = ''; render(); toast(decision === 'approved' ? 'request approved and order updated' : 'request declined');
+    } catch (error) { if (button) button.disabled = false; toast(readableError(error, 'request could not be reviewed')); }
+    return;
+  }
   if (form.id === 'team-password-form') {
     const password = String(data.get('temporaryPassword') || '');
     const confirmation = String(data.get('confirmPassword') || '');
@@ -752,7 +853,7 @@ app.addEventListener('submit', async (event) => {
     if (settings.taxEnabled) { settings.taxName = String(data.get('taxName') || 'tax'); settings.taxRate = Number(data.get('taxRate')) || 0; settings.taxInclusive = data.get('taxInclusive') === 'true'; }
     await save('settings', settings); await refreshData(); render(); toast('settings saved'); return;
   }
-  if (form.id === 'security-settings') { try { await updateManagerPin(String(data.get('managerPin'))); settings.managerPin = ''; render(); toast('manager pin updated'); } catch (error) { toast(error instanceof Error ? error.message.toLowerCase() : 'pin could not be updated'); } }
+  if (form.id === 'security-settings') { try { await updateManagerPin(String(data.get('managerPin'))); await refreshData(); render(); toast('manager pin updated · offline fallback ready'); } catch (error) { toast(error instanceof Error ? error.message.toLowerCase() : 'pin could not be updated'); } }
 });
 
 function readableError(error: unknown, fallback: string) {
@@ -973,7 +1074,11 @@ async function exportExcel() {
     const price = lineUnitPrice(line);
     itemRows.push([order.number, orderReference(order), line.product.sku, line.product.name, line.modifiers.map((item) => item.name).join(', '), line.quantity, price, price * line.quantity]);
   }));
-  const workbook = createXlsx([['summary', summaryRows], ['orders', orderRows], ['order items', itemRows]]);
+  const approvalRows: (string | number)[][] = [['request id', 'order', 'action', 'reason', 'status', 'requested by', 'requested at', 'reviewed by', 'reviewed at', 'owner note'], ...orderActionRequests.map((request) => {
+    const order = orders.find((item) => item.id === request.orderId);
+    return [request.id, order ? orderReference(order) : request.orderId, orderActionLabel(request.action), request.reason, request.status, request.requestedByName, request.requestedAt, request.reviewedByName || '', request.reviewedAt || '', request.reviewNote || ''];
+  })];
+  const workbook = createXlsx([['summary', summaryRows], ['orders', orderRows], ['order items', itemRows], ['approval requests', approvalRows]]);
   const workbookBytes = new Uint8Array(workbook.byteLength);
   workbookBytes.set(workbook);
   download(new Blob([workbookBytes.buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `doubletime-sales-${dateStamp()}.xlsx`); toast('excel workbook exported');
@@ -1006,9 +1111,9 @@ async function installApp() {
 }
 
 async function refreshData() {
-  const [nextProducts, nextModifiers, nextPriceLists, nextOrders, nextSettings, pending, device] = await Promise.all([getProducts(), getModifiers(), getPriceLists(), getOrders(), getSettings(), getPendingSyncState(), getDeviceIdentity()]);
+  const [nextProducts, nextModifiers, nextPriceLists, nextOrders, nextSettings, pending, device, nextRequests] = await Promise.all([getProducts(), getModifiers(), getPriceLists(), getOrders(), getSettings(), getPendingSyncState(), getDeviceIdentity(), getOrderActionRequests().catch(() => orderActionRequests)]);
   products = nextProducts; modifiers = nextModifiers; priceLists = nextPriceLists; orders = nextOrders; settings = nextSettings;
-  pendingSyncCount = pending.count; pendingOrderIds = new Set(pending.orderIds); deviceIdentity = device;
+  pendingSyncCount = pending.count; pendingOrderIds = new Set(pending.orderIds); deviceIdentity = device; orderActionRequests = nextRequests;
 }
 
 async function retry<T>(operation: () => Promise<T>, attempts = 2): Promise<T> {
@@ -1083,7 +1188,7 @@ async function handleSignOut() {
   stopBusinessWatcher?.(); stopBusinessWatcher = null;
   await clearOfflineAccess();
   try { await signOut(); } catch { /* the local session is cleared below */ }
-  currentProfile = null; businessProfiles = []; connectCloud(null); modal = ''; view = 'sell'; signInSentTo = '';
+  currentProfile = null; businessProfiles = []; orderActionRequests = []; connectCloud(null); modal = ''; view = 'sell'; signInSentTo = '';
   renderSignIn();
 }
 
