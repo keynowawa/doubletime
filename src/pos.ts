@@ -26,7 +26,8 @@ type NotificationMemory = { read: string[]; dismissed: string[] };
 
 const app = document.querySelector<HTMLElement>('#pos-app')!;
 const money = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0, maximumFractionDigits: 2 });
-const shortDate = new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric' });
+const shortDate = new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+const chartDate = new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: '2-digit' });
 const time = new Intl.DateTimeFormat('en-PH', { hour: 'numeric', minute: '2-digit' });
 
 let products: Product[] = [];
@@ -294,7 +295,7 @@ function renderSell() {
     <section class="product-stage">
       <header class="page-header sell-header">
         <div><p class="eyebrow">take your time.</p><h1>what are we making?</h1><p>tap a drink, choose the extras, and keep the line moving.</p></div>
-        <div class="header-badges">${isOwner() ? `<button class="price-switcher" data-action="open-price-picker"><span>${esc(activePriceList()?.name || 'pricing')}</span><i data-lucide="chevron-down"></i></button>` : `<span class="price-switcher read-only"><span>${esc(activePriceList()?.name || 'pricing')}</span></span>`}<span class="date-badge">${new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }).toLowerCase()}</span></div>
+        <div class="header-badges">${isOwner() ? `<button class="price-switcher" data-action="open-price-picker"><span>${esc(activePriceList()?.name || 'pricing')}</span><i data-lucide="chevron-down"></i></button>` : `<span class="price-switcher read-only"><span>${esc(activePriceList()?.name || 'pricing')}</span></span>`}<span class="date-badge">${new Date().toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).toLowerCase()}</span></div>
       </header>
       <div class="category-section"><div><span>categories</span><small>${shownProducts.filter((item) => !productUnavailable(item)).length} available</small></div><nav aria-label="product categories">${categories.map((category) => `<button class="${sellCategory === category ? 'active' : ''}" data-sell-category="${esc(category)}">${esc(category)}</button>`).join('')}</nav></div>
       <div class="product-grid">${shownProducts.map(renderProductCard).join('')}</div>
@@ -391,7 +392,7 @@ function dashboardSeries(sales: Order[]) {
   return Array.from({ length: days }, (_, index) => {
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1 - index) * step + 1);
     const start = new Date(end.getTime() - step * 86400000);
-    return { label: shortDate.format(start).toLowerCase(), value: sales.filter((order) => { const date = new Date(order.createdAt); return date >= start && date < end; }).reduce((sum, order) => sum + order.total, 0) };
+    return { label: chartDate.format(start).toLowerCase(), value: sales.filter((order) => { const date = new Date(order.createdAt); return date >= start && date < end; }).reduce((sum, order) => sum + order.total, 0) };
   });
 }
 
