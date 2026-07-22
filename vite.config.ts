@@ -23,15 +23,15 @@ const websiteFiles = [
 ];
 
 const posFiles = [
-  'assets/21.webp',
-  'assets/22.webp',
+  'assets/21-pos.webp',
+  'assets/22-pos.webp',
   'assets/DT-MAT-SLT-pos.webp',
   'assets/DT-LOGO-001.png',
   'assets/DT-LOGO-APPLETOUCH.png',
   'assets/DT-LOGO-APPLETOUCH-192.png',
   'assets/DT-LOGO-APPLETOUCH-512.png',
   'assets/DT-LOGO-TAB-ICON.png',
-  'assets/cocoloco-front-view.webp',
+  'assets/cocoloco-front-view-pos.webp',
   'pos-manifest.webmanifest',
   'pos-sw.js',
 ];

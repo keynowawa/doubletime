@@ -19,11 +19,11 @@ const OFFLINE_ACCESS_MS = OFFLINE_ACCESS_DAYS * 24 * 60 * 60 * 1000;
 
 const now = new Date().toISOString();
 const seedProducts: Product[] = [
-  { id: 'classic', sku: 'DT-MAT-CLS', name: 'classic matcha', description: 'smooth, sweet, and umami', category: 'matcha', price: 140, standardPrice: 190, image: '/assets/cocoloco-front-view.webp', modifierIds: ['oat','strawberry','mango','strawberry-mango','sweetener'], soldOut: false, archived: false, createdAt: now },
+  { id: 'classic', sku: 'DT-MAT-CLS', name: 'classic matcha', description: 'smooth, sweet, and umami', category: 'matcha', price: 140, standardPrice: 190, image: '/assets/cocoloco-front-view-pos.webp', modifierIds: ['oat','strawberry','mango','strawberry-mango','sweetener'], soldOut: false, archived: false, createdAt: now },
   { id: 'stay-salty', sku: 'DT-MAT-SLT', name: 'stay salty', description: 'matcha with sea salt cream', category: 'matcha', price: 160, standardPrice: 210, image: '/assets/DT-MAT-SLT-pos.webp', modifierIds: ['oat','sweetener'], soldOut: false, archived: false, createdAt: now },
-  { id: 'coco-loco', sku: 'DT-MAT-COC', name: 'coco loco', description: 'matcha with coconut milk', category: 'matcha', price: 170, standardPrice: 220, image: '/assets/cocoloco-front-view.webp', modifierIds: ['oat','sweetener'], soldOut: false, archived: false, createdAt: now },
-  { id: 'berry-cute', sku: 'DT-MAT-BRY', name: 'berry cute', description: 'strawberry matcha', category: 'matcha', price: 170, standardPrice: 220, image: '/assets/22.webp', modifierIds: ['oat','mango','sweetener'], soldOut: false, archived: false, createdAt: now },
-  { id: 'golden-hour', sku: 'DT-MAT-GLD', name: 'golden hour', description: 'mango matcha', category: 'matcha', price: 170, standardPrice: 220, image: '/assets/21.webp', modifierIds: ['oat','strawberry','sweetener'], soldOut: false, archived: false, createdAt: now },
+  { id: 'coco-loco', sku: 'DT-MAT-COC', name: 'coco loco', description: 'matcha with coconut milk', category: 'matcha', price: 170, standardPrice: 220, image: '/assets/cocoloco-front-view-pos.webp', modifierIds: ['oat','sweetener'], soldOut: false, archived: false, createdAt: now },
+  { id: 'berry-cute', sku: 'DT-MAT-BRY', name: 'berry cute', description: 'strawberry matcha', category: 'matcha', price: 170, standardPrice: 220, image: '/assets/22-pos.webp', modifierIds: ['oat','mango','sweetener'], soldOut: false, archived: false, createdAt: now },
+  { id: 'golden-hour', sku: 'DT-MAT-GLD', name: 'golden hour', description: 'mango matcha', category: 'matcha', price: 170, standardPrice: 220, image: '/assets/21-pos.webp', modifierIds: ['oat','strawberry','sweetener'], soldOut: false, archived: false, createdAt: now },
 ];
 const seedModifiers: Modifier[] = [
   { id: 'oat', sku: 'DT-ADD-OAT', name: 'oat milk', price: 25, archived: false, createdAt: now },
@@ -94,6 +94,15 @@ async function replaceLocal<T>(storeName: EntityStore, values: T[]) {
 
 const cloudActive = () => Boolean(isCloudConfigured && supabase && cloudProfile);
 const tableName = (storeName: EntityStore) => ({ products: 'products', modifiers: 'modifiers', priceLists: 'price_lists', orders: 'orders', settings: 'business_settings' })[storeName];
+const optimizedSeedImages: Array<[string, string]> = [
+  ['/assets/cocoloco-front-view.webp', '/assets/cocoloco-front-view-pos.webp'],
+  ['/assets/21.webp', '/assets/21-pos.webp'],
+  ['/assets/22.webp', '/assets/22-pos.webp'],
+];
+const optimizeProductImage = (product: Product): Product => {
+  const replacement = optimizedSeedImages.find(([source]) => product.image === source || product.image?.endsWith(source))?.[1];
+  return replacement && replacement !== product.image ? { ...product, image: replacement } : product;
+};
 const compactOrder = (order: Order): Order => ({
   ...order,
   lines: (order.lines || []).map((line) => ({
@@ -213,7 +222,7 @@ async function upsertCloud(storeName: EntityStore, originalValue: unknown) {
   if (!supabase || !cloudProfile) return originalValue;
   let value = originalValue as { id: string };
   if (storeName === 'products') {
-    value = await uploadProductImage(value as Product);
+    value = await uploadProductImage(optimizeProductImage(value as Product));
     await putLocal('products', value);
   }
   if (storeName === 'settings') {
@@ -487,7 +496,7 @@ export async function syncFromCloud() {
   if (error) throw error;
   const cloudSettings = { ...(settingsResult.data.payload as unknown as Settings), nextOrderNumber: settingsResult.data.next_order_number, managerPin: '' };
   await Promise.all([
-    replaceLocal('products', (productResult.data || []).map((row) => row.payload as unknown as Product)),
+    replaceLocal('products', (productResult.data || []).map((row) => optimizeProductImage(row.payload as unknown as Product))),
     replaceLocal('modifiers', (modifierResult.data || []).map((row) => row.payload as unknown as Modifier)),
     replaceLocal('priceLists', (priceResult.data || []).map((row) => row.payload as unknown as PriceList)),
     replaceLocal('orders', (orderResult.data || []).map((row) => compactOrder(row.payload as unknown as Order))),
@@ -495,7 +504,7 @@ export async function syncFromCloud() {
   ]);
 }
 
-export async function getProducts() { return allLocal<Product>('products'); }
+export async function getProducts() { return (await allLocal<Product>('products')).map(optimizeProductImage); }
 export async function getModifiers() { return allLocal<Modifier>('modifiers'); }
 export async function getOrders() { return (await allLocal<Order>('orders')).map(compactOrder); }
 export async function getPriceLists() { return allLocal<PriceList>('priceLists'); }

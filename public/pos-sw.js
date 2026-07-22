@@ -1,4 +1,4 @@
-const CACHE_NAME = 'doubletime-pos-v14';
+const CACHE_NAME = 'doubletime-pos-v15';
 const POS_BUNDLE_PATTERN = /^\/assets\/pos-[^/]+\.(?:js|css)$/;
 const APP_SHELL = [
   '/pos/',
@@ -8,10 +8,10 @@ const APP_SHELL = [
   '/assets/DT-LOGO-APPLETOUCH-512.png',
   '/assets/DT-LOGO-TAB-ICON.png',
   '/assets/DT-LOGO-001.png',
-  '/assets/cocoloco-front-view.webp',
+  '/assets/cocoloco-front-view-pos.webp',
   '/assets/DT-MAT-SLT-pos.webp',
-  '/assets/21.webp',
-  '/assets/22.webp',
+  '/assets/21-pos.webp',
+  '/assets/22-pos.webp',
 ];
 
 self.addEventListener('install', (event) => {

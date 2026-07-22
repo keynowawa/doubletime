@@ -323,7 +323,7 @@ function renderProductCard(product: Product) {
   const price = menuAmount(currentPrice(product));
   const unavailable = productUnavailable(product);
   return `<button class="product-card ${unavailable ? 'sold-out' : ''}" data-product="${product.id}" ${unavailable ? 'disabled' : ''}>
-    <div class="product-image"><img src="${esc(product.image)}" alt="" loading="lazy"><span class="add-dot"><i data-lucide="plus"></i></span>${unavailable ? '<em>unavailable</em>' : ''}</div>
+    <div class="product-image"><img src="${esc(product.image)}" alt="" loading="lazy" decoding="async"><span class="add-dot"><i data-lucide="plus"></i></span>${unavailable ? '<em>unavailable</em>' : ''}</div>
     <small>${esc(product.sku)}</small><h3>${esc(product.name)}</h3><p>${esc(product.description)}</p>
     <div class="product-price"><strong>${money.format(price)}</strong></div>
   </button>`;
@@ -1149,7 +1149,7 @@ async function prepareProductImage(file: File) {
       element.src = objectUrl;
     });
     const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
-    const scale = Math.min(1, 1200 / longestSide);
+    const scale = Math.min(1, 800 / longestSide);
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
