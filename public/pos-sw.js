@@ -1,9 +1,11 @@
-const CACHE_NAME = 'doubletime-pos-v12';
+const CACHE_NAME = 'doubletime-pos-v13';
 const APP_SHELL = [
   '/pos/',
   '/pos-manifest.webmanifest',
-  '/assets/pos-icon-192.png',
-  '/assets/pos-icon-512.png',
+  '/assets/DT-LOGO-APPLETOUCH.png',
+  '/assets/DT-LOGO-APPLETOUCH-192.png',
+  '/assets/DT-LOGO-APPLETOUCH-512.png',
+  '/assets/DT-LOGO-TAB-ICON.png',
   '/assets/DT-LOGO-001.png',
   '/assets/cocoloco-front-view.webp',
   '/assets/DT-MAT-SLT-pos.webp',

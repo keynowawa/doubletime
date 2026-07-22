@@ -9,7 +9,7 @@
   "background_color": "#f4f0e6",
   "theme_color": "#1e3b6a",
   "icons": [
-    { "src": "/assets/pos-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/assets/pos-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/assets/DT-LOGO-APPLETOUCH-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/DT-LOGO-APPLETOUCH-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }

@@ -27,9 +27,11 @@ const posFiles = [
   'assets/22.webp',
   'assets/DT-MAT-SLT-pos.webp',
   'assets/DT-LOGO-001.png',
+  'assets/DT-LOGO-APPLETOUCH.png',
+  'assets/DT-LOGO-APPLETOUCH-192.png',
+  'assets/DT-LOGO-APPLETOUCH-512.png',
+  'assets/DT-LOGO-TAB-ICON.png',
   'assets/cocoloco-front-view.webp',
-  'assets/pos-icon-192.png',
-  'assets/pos-icon-512.png',
   'pos-manifest.webmanifest',
   'pos-sw.js',
 ];
